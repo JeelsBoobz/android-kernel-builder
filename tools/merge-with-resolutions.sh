@@ -11,6 +11,7 @@
 #     --out <branch> --review <branch>
 #     --resolutions <file> --manual-dir <dir>
 #     [--promote] [--workdir <dir>]
+#     [--check-symbols <tool> [--symbols-allowlist <file>]]
 #
 # Auth: DEST_TOKEN env (never embedded in the remote URL, so it cannot
 # leak via push output; sent only as an http extraheader).
@@ -52,6 +53,8 @@ while [ $# -gt 0 ]; do
     --manual-dir) MANDIR="$2"; shift 2 ;;
     --promote) PROMOTE="true"; shift ;;
     --workdir) WORKDIR="$2"; shift 2 ;;
+    --check-symbols) SYMBOLS_TOOL="$2"; shift 2 ;;
+    --symbols-allowlist) SYMBOLS_ALLOW="$2"; shift 2 ;;
     *) echo "merge-with-resolutions: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -241,6 +244,12 @@ if [ -n "${CONFLICT_MODE:-}" ]; then
   # Provenance trailer (keeps the auto Conflicts: list audit parses).
   git "${GITID[@]}" commit --amend --no-edit -m "$(git log -1 --format=%B)" -m "Resolutions-from: $RESOL"
   log "resolved commit: $(git rev-parse HEAD)"
+fi
+if [ -n "${SYMBOLS_TOOL:-}" ]; then
+  if [ ! -x "$SYMBOLS_TOOL" ]; then log "FAIL: check-symbols tool not executable: $SYMBOLS_TOOL"; exit 2; fi
+  SYM_ARGS=(--repo . --base "$LTS_TIP")
+  [ -n "${SYMBOLS_ALLOW:-}" ] && SYM_ARGS+=(--allowlist "$SYMBOLS_ALLOW")
+  "$SYMBOLS_TOOL" "${SYM_ARGS[@]}" || { log "FAIL: added-symbol gate"; exit 1; }
 fi
 MERGED=$(git rev-parse HEAD)
 push_ref "$MERGED" "$REVIEW" "$OLD_REVIEW"

@@ -1,0 +1,6 @@
+# Added-symbol gate allowlist: bare C identifiers with no C declaration
+# that are still legitimate merge-added call sites (asm-defined symbols,
+# linker-provided symbols, other deliberate exceptions). One per line,
+# exact match. Prefer fixing the tree over extending this list; every entry
+# needs a one-line reason.
+# (empty: no exceptions yet -- entries arrive from production runs.)

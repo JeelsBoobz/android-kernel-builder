@@ -85,7 +85,9 @@ jobs:
             --lts "${{ matrix.lts }}" --stable "${{ matrix.stable }}"
             --out "$OUT" --review "$OUT-review"
             --resolutions "$RESOL" --manual-dir "$MANDIR"
-            --workdir "work-$OUT")
+            --workdir "work-$OUT"
+            --check-symbols "$GITHUB_WORKSPACE/builder/tools/check-added-symbols.sh"
+            --symbols-allowlist "$GITHUB_WORKSPACE/builder/tools/added-symbols-allowlist")
           export DEST_TOKEN="${DEST_TOKEN}"
           if [ "${{ inputs.promote }}" = "true" ]; then ARGS+=(--promote); fi
           bash "$GITHUB_WORKSPACE/builder/tools/merge-with-resolutions.sh" "${ARGS[@]}" | tee /tmp/mwr.log

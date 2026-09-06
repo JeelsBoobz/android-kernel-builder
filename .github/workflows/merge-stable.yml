@@ -252,6 +252,16 @@ jobs:
             git -c user.name="kernel-mirror" -c user.email="kernel-mirror@users.noreply.github.com" commit --no-edit
             echo "AI-resolved commit: $(git rev-parse HEAD)"
           fi
+          # Added-symbol gate: merge-added C calls must resolve in-tree.
+          # Catches silent semantic breaks (stable API uses landing on an
+          # LTS that reverted that API -- no markers, full-size files, broken
+          # compile). Fail -> quarantine, never silent promotion.
+          if ! bash "$TOOLS/check-added-symbols.sh" --repo . --base "$LTS_TIP" \
+              --allowlist "$TOOLS/added-symbols-allowlist"; then
+            { echo "Added-symbol gate failed on $LTS + $STABLE:"; echo "the merge adds C calls with no declaration in-tree (see UNRESOLVED lines above)."; } > /tmp/quarantine.md
+            quarantine /tmp/quarantine.md "[$OUT] added-symbol gate FLAG ($LTS + $STABLE)"
+            exit 0
+          fi
           MERGED=$(git rev-parse HEAD)
           echo "merged: $MERGED (mode=$MERGE_MODE)"
 
