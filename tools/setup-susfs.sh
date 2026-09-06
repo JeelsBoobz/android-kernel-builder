@@ -61,12 +61,13 @@ EOF
     exit 0 ;;
 esac
 
-# KSU side must already carry SUSFS hooks (dev-susfs / next-susfs). A plain
-# KSU build has no KSU_SUSFS symbol, so fail fast with the fix instead of
-# shipping a kernel where the fragment enables nothing.
+# KSU side with SUSFS hooks (dev-susfs / next-susfs) gets the kernel patch.
+# A plain KSU build (e.g. 6.18 pinned to dev via a ksu_ref branch:ref map)
+# has no KSU_SUSFS symbol at all -- clean skip with NO fragment, since even
+# a suppression would reference a symbol that does not exist there.
 if ! grep -q "KSU_SUSFS" common/drivers/kernelsu/Kconfig 2>/dev/null; then
-  echo "setup-susfs: KSU driver lacks SUSFS hooks; dispatch with ksu_ref 'dev-susfs' (KSU side)" >&2
-  exit 2
+  echo "setup-susfs: KSU driver has no SUSFS hooks (plain ref); skipping, KSU-only build"
+  exit 0
 fi
 
 NAME="susfs4ksu"
