@@ -172,21 +172,27 @@ else
   # trace_android_vh_do_new_mount_fc (namespace.c fails without it), and
   # linux/dma-buf.h declares susfs's exec helpers. Re-add is idempotent
   # (grep-guarded) and skipped if the header itself is gone in-tree.
-  restore_include() { # $1 file $2 anchor-ere $3 include-line $4 header-path
+  restore_include() { # $1 file $2 anchor-line $3 include-line $4 header-path
     grep -qF "$3" "common/$1" 2>/dev/null && return 0
     if [ ! -f "common/$4" ]; then
       echo "setup-susfs: WARN header gone in-tree, skip restore: $4" >&2; return 0
     fi
-    sed -i "0,/$2/a $3" "common/$1"
+    # Line-number addressing (single address: valid for `a`) + fixed-string
+    # anchor match (no regex metachar pitfalls, first match only).
+    n=$(grep -n -m1 -F -e "$2" "common/$1" | cut -d: -f1)
+    if [ -z "$n" ]; then
+      echo "setup-susfs: WARN anchor gone, skip restore: $2 in $1" >&2; return 0
+    fi
+    sed -i "${n}a $3" "common/$1"
   }
   case "$GKI_VER" in
     gki-android13-5.15|gki-android14-5.15)
-      restore_include fs/namespace.c '^#include "internal.h"$' '#include <trace/hooks/blk.h>' include/trace/hooks/blk.h
-      restore_include fs/proc/task_mmu.c '^#include <linux/pkeys.h>$' '#include <trace/hooks/mm.h>' include/trace/hooks/mm.h ;;
+      restore_include fs/namespace.c '#include "internal.h"' '#include <trace/hooks/blk.h>' include/trace/hooks/blk.h
+      restore_include fs/proc/task_mmu.c '#include <linux/pkeys.h>' '#include <trace/hooks/mm.h>' include/trace/hooks/mm.h ;;
     gki-android14-6.1)
-      restore_include fs/namespace.c '^#include "internal.h"$' '#include <trace/hooks/blk.h>' include/trace/hooks/blk.h ;;
+      restore_include fs/namespace.c '#include "internal.h"' '#include <trace/hooks/blk.h>' include/trace/hooks/blk.h ;;
     gki-android16-6.12)
-      restore_include fs/exec.c '^#include <linux/ksm.h>$' '#include <linux/dma-buf.h>' include/linux/dma-buf.h ;;
+      restore_include fs/exec.c '#include <linux/ksm.h>' '#include <linux/dma-buf.h>' include/linux/dma-buf.h ;;
   esac
   # Fail closed: GNU patch tolerates drift, so verify it did not half-apply.
   if find common/fs common/mm common/kernel common/drivers common/security common/include -name '*.rej' 2>/dev/null | grep -q .; then
