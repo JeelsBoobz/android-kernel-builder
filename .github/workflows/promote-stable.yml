@@ -25,6 +25,10 @@ on:
         description: "Push -stable refs when gates pass (default dry-run to -review)"
         type: boolean
         default: false
+      reapply:
+        description: "Redo the merge even when -stable already contains both tips (applies updated resolutions)"
+        type: boolean
+        default: false
 
 concurrency:
   group: promote-stable
@@ -90,6 +94,7 @@ jobs:
             --symbols-allowlist "$GITHUB_WORKSPACE/builder/tools/added-symbols-allowlist")
           export DEST_TOKEN="${DEST_TOKEN}"
           if [ "${{ inputs.promote }}" = "true" ]; then ARGS+=(--promote); fi
+          if [ "${{ inputs.reapply }}" = "true" ]; then ARGS+=(--reapply); fi
           bash "$GITHUB_WORKSPACE/builder/tools/merge-with-resolutions.sh" "${ARGS[@]}" | tee /tmp/mwr.log
           {
             echo "## $OUT: merged $(grep -o 'RESULT_SHA=[0-9a-f]*' /tmp/mwr.log || true)"

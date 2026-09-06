@@ -32,6 +32,10 @@
 # Makefile takes --theirs (stable-only version bump, same as merge-stable).
 #
 # Exit 0 = gates passed, review pushed (stable pushed too iff --promote).
+# --reapply forces the merge to be redone even when OUT already contains
+# both tips (resolutions are versioned: a re-run with identical tips but
+# new resolutions content must produce a new merge; replaces OUT/review
+# via force-with-lease, so the diff OLD..NEW shows exactly the update).
 # Exit 1 = unresolvable (conflict without a recorded resolution, or gate
 # failure); reason printed, nothing pushed. Exit 2 = usage/tooling error.
 # Resulting SHA printed on stdout as "RESULT_SHA=<sha>" (logs on stderr).
@@ -52,6 +56,7 @@ while [ $# -gt 0 ]; do
     --resolutions) RESOL="$2"; shift 2 ;;
     --manual-dir) MANDIR="$2"; shift 2 ;;
     --promote) PROMOTE="true"; shift ;;
+    --reapply) REAPPLY="true"; shift ;;
     --workdir) WORKDIR="$2"; shift 2 ;;
     --check-symbols) SYMBOLS_TOOL="$2"; shift 2 ;;
     --symbols-allowlist) SYMBOLS_ALLOW="$2"; shift 2 ;;
@@ -85,9 +90,13 @@ git fetch dest "refs/heads/$REVIEW:refs/remotes/dest/$REVIEW" 2>/dev/null && OLD
 # NO-OP: OUT already contains both inputs.
 if [ -n "$OLD" ] && git merge-base --is-ancestor "$LTS_TIP" "$OLD" 2>/dev/null \
     && git merge-base --is-ancestor "$STABLE_TIP" "$OLD" 2>/dev/null; then
-  log "$OUT ($OLD) already contains both tips; nothing to do"
-  echo "RESULT_SHA=$OLD"
-  exit 0
+  if [ "${REAPPLY:-false}" = "true" ]; then
+    log "$OUT ($OLD) already contains both tips; --reapply: redoing merge with current resolutions"
+  else
+    log "$OUT ($OLD) already contains both tips; nothing to do"
+    echo "RESULT_SHA=$OLD"
+    exit 0
+  fi
 fi
 
 push_ref() { # $1 sha $2 ref $3 old-or-empty

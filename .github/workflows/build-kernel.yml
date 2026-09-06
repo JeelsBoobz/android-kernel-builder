@@ -128,7 +128,7 @@ jobs:
             H=$(date -u +%H)
             if [ "$H" -lt 12 ]; then EFF_SUSFS=true; else EFF_SUSFS=false; fi
             EFF_REV=lts
-            EFF_BBRV3=false # flip to true once the BBRv3 trial proves green
+            EFF_BBRV3=true # trial 34026781334 green on all 8 (6.12/6.18 gated out)
             if [ "$EFF_SUSFS" = "true" ]; then
               EFF_KSU_REF="android12-5.10-stable:dev-susfs,android13-5.10-stable:dev-susfs,android13-5.15-stable:dev-susfs,android14-5.15-stable:dev-susfs,android14-6.1-stable:dev-susfs,android15-6.6-stable:dev,android16-6.12-stable:dev,android17-6.18-stable:dev"
             else
@@ -547,10 +547,10 @@ jobs:
           [ "${#files[@]}" -gt 0 ] || { echo "no AnyKernel3 zips; skipping release"; exit 0; }
           TAG="kernel-build-r${{ github.run_number }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          # Manager APK: official org's dev-tip nightly (Build Manager CI).
-          # pershoot dev == official dev (same SHA), so dev-ref trees match
-          # exactly; dev-susfs trees carry extra commits (see KSU row).
-          MANAGER_URL="https://nightly.link/KernelSU-Next/KernelSU-Next/workflows/build-manager-ci/dev/manager.zip"
+          # Manager APK URL resolved after the KSU loop below (pinned run
+          # link when an upstream manager build matches our primary KSU SHA,
+          # else the dev-tip nightly; pershoot dev == official dev, so
+          # dev-ref trees match exactly, dev-susfs ones carry extra commits).
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | tr '\n' ' ')
           # Resolved KSU versions (one "TAG SHA REF VCODE" file per built branch).
           # Uniform -> single value; mixed -> common plus branch outliers;
@@ -568,6 +568,25 @@ jobs:
               elif [ "$d" != "$KSU_FIRST" ]; then KSU_OUT="$KSU_OUT; $b: $d"; fi
             done
             [ -n "$KSU_FIRST" ] && KSU_DISPLAY="true: $KSU_OUT"
+          fi
+          # Version-pinned manager link: most-common KSU SHA across built
+          # branches -> newest successful upstream manager build on that SHA
+          # (run-scoped nightly.link is immutable). pershoot-only SHAs have
+          # no upstream run -> dev-tip fallback. Fail-open throughout.
+          MANAGER_URL="https://nightly.link/KernelSU-Next/KernelSU-Next/workflows/build-manager-ci/dev/manager.zip"
+          MANAGER_PIN="dev tip"
+          if [ "${{ inputs.ksu }}" != "false" ]; then
+            WID=$(gh api repos/KernelSU-Next/KernelSU-Next/actions/workflows --jq '.workflows[] | select(.path==".github/workflows/build-manager-ci.yml") | .id' 2>/dev/null || true)
+            if [ -n "$WID" ]; then
+              for PSHA in $(for vf in ksuversions/ksu-version-*.txt; do [ -f "$vf" ] && awk '{print $2}' "$vf"; done | sort | uniq -c | sort -rn | awk '{print $2}'); do
+                RID=$(gh api "repos/KernelSU-Next/KernelSU-Next/actions/workflows/$WID/runs?branch=dev&status=success&per_page=100" --jq ".workflow_runs[] | select(.head_sha | startswith(\"$PSHA\")) | .id" 2>/dev/null | head -1 || true)
+                if [ -n "$RID" ]; then
+                  MANAGER_URL="https://nightly.link/KernelSU-Next/KernelSU-Next/actions/runs/$RID/manager.zip"
+                  MANAGER_PIN="pinned run $RID"
+                  break
+                fi
+              done
+            fi
           fi
           # Resolved SuSFS versions (one "GKI_VER SHA REF" file per branch
           # that BUILT WITH SuSFS). Branches that built without it (gated
@@ -622,7 +641,7 @@ jobs:
             echo "### 🔗 Links"
             echo "- Build logs: $RUN_URL"
             echo "- Risk register: [RISK.md](https://github.com/${{ github.repository }}/blob/main/RISK.md)"
-            if [ "${{ inputs.ksu }}" = "true" ]; then echo "- Manager APK (official dev nightly, version-match with the KSU row above): $MANAGER_URL"; fi
+            if [ "${{ inputs.ksu }}" = "true" ]; then echo "- Manager APK ($MANAGER_PIN, version-match with the KSU row above): $MANAGER_URL"; fi
           } > release-notes.md
           # Release footnotes (docs/RELEASE_NOTES_EXTRA.txt): appended as
           # ### Notes so free text never looks bolted-on.
@@ -637,7 +656,7 @@ jobs:
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
           {
             [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next: $KSU_DISPLAY"
-            [ "${{ inputs.ksu }}" = "true" ] && echo "• Manager APK: $MANAGER_URL"
+            [ "${{ inputs.ksu }}" = "true" ] && echo "• Manager APK ($MANAGER_PIN): $MANAGER_URL"
             [ "${{ steps.eff.outputs.eff_susfs }}" = "true" ] && echo "• SuSFS: $SUSFS_TG"
             [ "${{ inputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
             [ "${{ inputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
