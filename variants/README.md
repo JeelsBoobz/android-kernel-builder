@@ -15,3 +15,8 @@ Dispatch has 4 inputs: `variant`, `branch` (default `all`), `release`
 off). `release` and Telegram are never in the JSON: every release posts
 to Telegram, always. `detect-upstream` dispatches `susfs` + `release=true`
 on new upstream tips.
+
+Pins: `pins` forces one ref for a component on every branch (parity —
+one SHA in the version table instead of a mix). Empty = per-branch
+`ksu_ref`/`susfs_ref`/`nomount_ref`/`guard_ref` win; empty there too =
+the setup script default (tip / dev / main).

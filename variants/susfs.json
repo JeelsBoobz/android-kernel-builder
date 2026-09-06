@@ -9,13 +9,91 @@
     "fragments": true
   },
   "branches": [
-    {"branch": "android12-5.10-stable", "fallback": "android12-5.10-lts", "manifest": "common-android12-5.10-lts", "kind": "build_sh", "ksu_ref": "dev-susfs"},
-    {"branch": "android13-5.10-stable", "fallback": "android13-5.10-lts", "manifest": "common-android13-5.10-lts", "kind": "build_sh", "ksu_ref": "dev-susfs"},
-    {"branch": "android13-5.15-stable", "fallback": "android13-5.15-lts", "manifest": "common-android13-5.15-lts", "kind": "build_sh", "ksu_ref": "dev-susfs"},
-    {"branch": "android14-5.15-stable", "fallback": "android14-5.15-lts", "manifest": "common-android14-5.15-lts", "kind": "kleaf", "ksu_ref": "dev-susfs"},
-    {"branch": "android14-6.1-stable", "fallback": "android14-6.1-lts", "manifest": "common-android14-6.1-lts", "kind": "kleaf", "ksu_ref": "dev-susfs"},
-    {"branch": "android15-6.6-stable", "fallback": "android15-6.6-lts", "manifest": "common-android15-6.6-lts", "kind": "kleaf", "ksu_ref": "dev"},
-    {"branch": "android16-6.12-stable", "fallback": "android16-6.12-lts", "manifest": "common-android16-6.12-lts", "kind": "kleaf", "ksu_ref": "dev-susfs"},
-    {"branch": "android17-6.18-stable", "fallback": "android17-6.18-lts", "manifest": "common-android17-6.18-lts", "kind": "kleaf", "ksu_ref": "dev"}
-  ]
+    {
+      "branch": "android12-5.10-stable",
+      "fallback": "android12-5.10-lts",
+      "manifest": "common-android12-5.10-lts",
+      "kind": "build_sh",
+      "ksu_ref": "dev-susfs",
+      "susfs_ref": "",
+      "nomount_ref": "",
+      "guard_ref": ""
+    },
+    {
+      "branch": "android13-5.10-stable",
+      "fallback": "android13-5.10-lts",
+      "manifest": "common-android13-5.10-lts",
+      "kind": "build_sh",
+      "ksu_ref": "dev-susfs",
+      "susfs_ref": "",
+      "nomount_ref": "",
+      "guard_ref": ""
+    },
+    {
+      "branch": "android13-5.15-stable",
+      "fallback": "android13-5.15-lts",
+      "manifest": "common-android13-5.15-lts",
+      "kind": "build_sh",
+      "ksu_ref": "dev-susfs",
+      "susfs_ref": "",
+      "nomount_ref": "",
+      "guard_ref": ""
+    },
+    {
+      "branch": "android14-5.15-stable",
+      "fallback": "android14-5.15-lts",
+      "manifest": "common-android14-5.15-lts",
+      "kind": "kleaf",
+      "ksu_ref": "dev-susfs",
+      "susfs_ref": "",
+      "nomount_ref": "",
+      "guard_ref": ""
+    },
+    {
+      "branch": "android14-6.1-stable",
+      "fallback": "android14-6.1-lts",
+      "manifest": "common-android14-6.1-lts",
+      "kind": "kleaf",
+      "ksu_ref": "dev-susfs",
+      "susfs_ref": "",
+      "nomount_ref": "",
+      "guard_ref": ""
+    },
+    {
+      "branch": "android15-6.6-stable",
+      "fallback": "android15-6.6-lts",
+      "manifest": "common-android15-6.6-lts",
+      "kind": "kleaf",
+      "ksu_ref": "dev",
+      "susfs_ref": "",
+      "nomount_ref": "",
+      "guard_ref": ""
+    },
+    {
+      "branch": "android16-6.12-stable",
+      "fallback": "android16-6.12-lts",
+      "manifest": "common-android16-6.12-lts",
+      "kind": "kleaf",
+      "ksu_ref": "dev-susfs",
+      "susfs_ref": "",
+      "nomount_ref": "",
+      "guard_ref": ""
+    },
+    {
+      "branch": "android17-6.18-stable",
+      "fallback": "android17-6.18-lts",
+      "manifest": "common-android17-6.18-lts",
+      "kind": "kleaf",
+      "ksu_ref": "dev",
+      "susfs_ref": "",
+      "nomount_ref": "",
+      "guard_ref": ""
+    }
+  ],
+  "pins": {
+    "ksu": "",
+    "susfs": "",
+    "nomount": "",
+    "guard": ""
+  }
 }

@@ -38,6 +38,10 @@ jobs:
       guard: ${{ steps.v.outputs.guard }}
       susfs: ${{ steps.v.outputs.susfs }}
       bbrv3: ${{ steps.v.outputs.bbrv3 }}
+      pin_ksu: ${{ steps.v.outputs.pin_ksu }}
+      pin_susfs: ${{ steps.v.outputs.pin_susfs }}
+      pin_nomount: ${{ steps.v.outputs.pin_nomount }}
+      pin_guard: ${{ steps.v.outputs.pin_guard }}
       fragments: ${{ steps.v.outputs.fragments }}
       extra_config: ${{ steps.v.outputs.extra_config }}
       branch: ${{ steps.v.outputs.branch }}
@@ -59,14 +63,17 @@ jobs:
           echo "guard=$(get guard)" >>"$GITHUB_OUTPUT"
           echo "susfs=$(get susfs)" >>"$GITHUB_OUTPUT"
           echo "bbrv3=$(get bbrv3)" >>"$GITHUB_OUTPUT"
+          for p in ksu susfs nomount guard; do
+            echo "pin_$p=$(jq -r ".pins[\"$p\"] // \"\"" <<<"$J")" >>"$GITHUB_OUTPUT"
+          done
           echo "fragments=$(get fragments)" >>"$GITHUB_OUTPUT"
           echo "extra_config=$(get extra_config)" >>"$GITHUB_OUTPUT"
           if [ -z "$BRANCH_IN" ] || [ "$BRANCH_IN" = "all" ]; then B="all"; else B="$BRANCH_IN"; fi
           echo "branch=$B" >>"$GITHUB_OUTPUT"
           if [ "$B" = "all" ]; then
-            M=$(jq -c '{include: [.branches[] | {our_branch: .branch, fallback_branch: .fallback, manifest_branch: .manifest, build_kind: .kind, ksu_ref: .ksu_ref}]}' <<<"$J")
+            M=$(jq -c '{include: [.branches[] | {our_branch: .branch, fallback_branch: .fallback, manifest_branch: .manifest, build_kind: .kind, ksu_ref: .ksu_ref, susfs_ref: (.susfs_ref // ""), nomount_ref: (.nomount_ref // ""), guard_ref: (.guard_ref // "")}]}' <<<"$J")
           else
-            M=$(jq -c --arg o "$B" '{include: [.branches[] | select(.branch == $o or .fallback == $o) | {our_branch: .branch, fallback_branch: .fallback, manifest_branch: .manifest, build_kind: .kind, ksu_ref: .ksu_ref}]}' <<<"$J")
+            M=$(jq -c --arg o "$B" '{include: [.branches[] | select(.branch == $o or .fallback == $o) | {our_branch: .branch, fallback_branch: .fallback, manifest_branch: .manifest, build_kind: .kind, ksu_ref: .ksu_ref, susfs_ref: (.susfs_ref // ""), nomount_ref: (.nomount_ref // ""), guard_ref: (.guard_ref // "")}]}' <<<"$J")
             [ "$(jq '.include | length' <<<"$M")" -gt 0 ] || { echo "no variant branch matches: $B"; exit 2; }
           fi
           echo "matrix=$M" >>"$GITHUB_OUTPUT"
@@ -135,14 +142,18 @@ jobs:
         if: needs.resolve.outputs.ksu != 'false'
         run: |
           cd kernel
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-kernelsu-next.sh" --ref "${{ matrix.ksu_ref }}"
+          REF="${{ needs.resolve.outputs.pin_ksu }}"
+          [ -n "$REF" ] || REF="${{ matrix.ksu_ref }}"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-kernelsu-next.sh" --ref "$REF"
 
       - name: Integrate SuSFS
         if: needs.resolve.outputs.susfs != 'false'
         run: |
           cd kernel
+          REF="${{ needs.resolve.outputs.pin_susfs }}"
+          [ -n "$REF" ] || REF="${{ matrix.susfs_ref }}"
           bash "$GITHUB_WORKSPACE/builder/tools/setup-susfs.sh" \
-            --our-branch "${{ matrix.our_branch }}"
+            --our-branch "${{ matrix.our_branch }}" --ref "$REF"
 
       - name: Integrate BBRv3
         if: needs.resolve.outputs.bbrv3 != 'false'
@@ -156,13 +167,17 @@ jobs:
         if: needs.resolve.outputs.nomount != 'false'
         run: |
           cd kernel
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-nomount.sh"
+          REF="${{ needs.resolve.outputs.pin_nomount }}"
+          [ -n "$REF" ] || REF="${{ matrix.nomount_ref }}"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-nomount.sh" --ref "$REF"
 
       - name: Integrate Partition Guard
         if: needs.resolve.outputs.guard != 'false'
         run: |
           cd kernel
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-partition-guard.sh"
+          REF="${{ needs.resolve.outputs.pin_guard }}"
+          [ -n "$REF" ] || REF="${{ matrix.guard_ref }}"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-partition-guard.sh" --ref "$REF"
 
       - name: Apply config fragments (build.sh era)
         if: matrix.build_kind == 'build_sh' && (needs.resolve.outputs.fragments != 'false' || needs.resolve.outputs.extra_config != '')
@@ -412,6 +427,7 @@ jobs:
           KSU_DISPLAY="false"
           if [ "${{ needs.resolve.outputs.ksu }}" != "false" ]; then
             KSU_DISPLAY="true (ref: per-branch, see variants/${{ inputs.variant }}.json)"
+            [ -n "${{ needs.resolve.outputs.pin_ksu }}" ] && KSU_DISPLAY="true (pinned: ${{ needs.resolve.outputs.pin_ksu }})"
             KSU_FIRST=""; KSU_OUT=""
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue
