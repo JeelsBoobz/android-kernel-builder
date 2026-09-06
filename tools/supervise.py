@@ -30,6 +30,9 @@ Review the merge diff below. Flag ANY of:
 - suspicious conflict resolutions (duplicated logic, dropped hunks, leftover debugging)
 - any file losing >50% of its lines vs its parent side (truncated AI stub —
   mass deletions are never a correct conflict resolution, FLAG immediately)
+{scope}
+Tool-generated audit context (trustworthy, verified by script — weigh it above the diff):
+{note}
 
 Diff (may be truncated):
 ---
@@ -50,6 +53,9 @@ def main():
     ap.add_argument("--lts", default="")
     ap.add_argument("--stable", default="")
     ap.add_argument("--model", default=os.environ.get("AI_MODEL", "") or FREE_DEFAULT)
+    ap.add_argument("--note", default="")
+    ap.add_argument("--audit", action="store_true",
+                        help="audit mode: stable-side changes pre-approved, judge resolutions only")
     ap.add_argument("--timeout", type=int, default=240)
     args = ap.parse_args()
 
@@ -70,12 +76,21 @@ def main():
     if len(diff) > 95000:
         diff = diff[:30000] + "\n...[middle truncated]...\n" + diff[-60000:]
 
+    if args.audit:
+        scope = ("SCOPE: you are the AUDIT confirm step. Stable-side (.y) changes are "
+                 "pre-approved upstream stable work — do NOT flag them. Judge ONLY whether "
+                 "the conflict resolutions faithfully preserve both sides. The per-file "
+                 "line table below is ground truth: any resolved file far smaller than "
+                 "both parents is a truncated stub, FLAG it even if the diff looks quiet.")
+    else:
+        scope = "SCOPE: full merge review (mergable != compatible)."
+    note = args.note.strip() or "(none)"
     body = json.dumps({
         "model": model,
         "temperature": 0,
         "messages": [
             {"role": "system", "content": "You review kernel merges. Reply only in the VERDICT format."},
-            {"role": "user", "content": PROMPT_TMPL.format(lts=args.lts, stable=args.stable, diff=diff)},
+            {"role": "user", "content": PROMPT_TMPL.format(lts=args.lts, stable=args.stable, diff=diff, scope=scope, note=note)},
         ],
     }).encode()
     req = urllib.request.Request(
