@@ -73,7 +73,7 @@ merge). The tree is committed before compile so versions never carry
 | `mirror-kernel-common.yml` | schedule + dispatch | Sync 8 branches in parallel (chunked pushes, fast-forward only), publish reachable tags |
 | `merge-stable.yml` | schedule + dispatch | Merge Greg KH `linux-*.y` into `-stable` via AI resolver (OpenRouter, cap 20 files) + supervisor review, quarantine `-stable-review` on flag |
 | `promote-stable.yml` | dispatch (`branch`, `promote`) | Human-recorded merges via `tools/merge-with-resolutions.sh` + `merges/*.resolutions`: dry-run pushes `-stable-review`, `promote=true` pushes `-stable` (static gates, no AI) |
-| `build-kernel.yml` | dispatch + weekly | Per-branch matrix (`build_sh` vs `kleaf`), then oneRelease with all AK3 zips |
+| `build-kernel.yml` | dispatch + every 12h (05:00 SuSFS / 17:00 plain, always `-lts`) | Per-branch matrix (`build_sh` vs `kleaf`), then oneRelease with all AK3 zips |
 
 ## Usage
 

@@ -57,8 +57,12 @@ on:
         description: "Post the filled release template to Telegram channel (needs TELEGRAM_* secrets)"
         type: boolean
         default: true
+  # Every 12h, alternating: 05:00 UTC builds WITH SuSFS, 17:00 UTC WITHOUT
+  # (stateless alternation -- see the Resolve effective inputs steps; a
+  # missed run never desyncs a state file). Both always track -lts.
   schedule:
-    - cron: "0 5 * * 0" # weekly Sunday 05:00 UTC
+    - cron: "0 5 * * *"
+    - cron: "0 17 * * *"
 
 # Release publishing needs contents:write; artifact up/down needs
 # actions:write (declaring any scope narrows the rest, so both explicit).
@@ -109,6 +113,33 @@ jobs:
         with:
           path: builder
 
+      # Effective inputs: manual dispatch uses inputs.* verbatim; scheduled
+      # runs alternate statelessly (05:00 UTC SuSFS on, 17:00 UTC off) and
+      # always track -lts. 6.18 always needs the dev KSU ref (policydb);
+      # SuSFS trees need dev-susfs; KSU-only trees take plain dev.
+      - name: Resolve effective inputs
+        id: eff
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            H=$(date -u +%H)
+            if [ "$H" -lt 12 ]; then EFF_SUSFS=true; else EFF_SUSFS=false; fi
+            EFF_REV=lts
+            EFF_BBRV3=false # flip to true once the BBRv3 trial proves green
+            if [ "$EFF_SUSFS" = "true" ]; then
+              EFF_KSU_REF="android12-5.10-stable:dev-susfs,android13-5.10-stable:dev-susfs,android13-5.15-stable:dev-susfs,android14-5.15-stable:dev-susfs,android14-6.1-stable:dev-susfs,android15-6.6-stable:dev,android16-6.12-stable:dev,android17-6.18-stable:dev"
+            else
+              EFF_KSU_REF="android17-6.18-stable:dev"
+            fi
+          else
+            EFF_SUSFS="${{ inputs.susfs }}"; EFF_REV="${{ inputs.our_revision }}"
+            EFF_BBRV3="${{ inputs.bbrv3 }}"; EFF_KSU_REF="${{ inputs.ksu_ref }}"
+          fi
+          echo "eff_susfs=$EFF_SUSFS" >>"$GITHUB_OUTPUT"
+          echo "eff_rev=$EFF_REV" >>"$GITHUB_OUTPUT"
+          echo "eff_bbrv3=$EFF_BBRV3" >>"$GITHUB_OUTPUT"
+          echo "eff_ksu_ref=$EFF_KSU_REF" >>"$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
       # Throwaway runner: nuke preinstalled SDK/toolchain trees directly
       # (vendored from the author's prior identity CloudFox-Kernel-Builder, no third-party action).
       # Full kernel tree + prebuilts + bazel cache need tens of GB.
@@ -136,7 +167,7 @@ jobs:
         id: rev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OVERRIDE: ${{ inputs.our_revision }}
+          OVERRIDE: ${{ steps.eff.outputs.eff_rev }}
           WANT: ${{ matrix.our_branch }}
           FALLBACK: ${{ matrix.fallback_branch }}
         run: |
@@ -176,7 +207,7 @@ jobs:
           # map: branch:ref[,branch:ref...] (unmapped trees take the
           # latest tag). Ref names cannot contain ':'; branch matches
           # our_branch or fallback_branch.
-          WANT_REF="${{ inputs.ksu_ref }}"
+          WANT_REF="${{ steps.eff.outputs.eff_ksu_ref }}"
           REF=""
           if [[ "$WANT_REF" == *:* ]]; then
             OLDIFS=$IFS; IFS=,
@@ -198,7 +229,7 @@ jobs:
       # KSU (verifies SUSFS hooks in the linked driver) and before NoMount.
       # Writes .fragments/susfs.config, picked up by the Apply step below.
       - name: Integrate SuSFS
-        if: inputs.susfs != false
+        if: steps.eff.outputs.eff_susfs != 'false'
         run: |
           cd kernel
           bash "$GITHUB_WORKSPACE/builder/tools/setup-susfs.sh" \
@@ -208,7 +239,7 @@ jobs:
       # alongside BBRv1 (untouched); dormant until selected per-connection.
       # Writes .fragments/bbrv3.config, picked up by the Apply step below.
       - name: Integrate BBRv3
-        if: inputs.bbrv3 != false
+        if: steps.eff.outputs.eff_bbrv3 != 'false'
         run: |
           cd kernel
           bash "$GITHUB_WORKSPACE/builder/tools/setup-bbrv3.sh" \
@@ -394,7 +425,7 @@ jobs:
           fi
           echo "zip revision: $ZIPREV"
           INT=""; [ "${{ inputs.ksu }}" = "true" ] && INT="${INT}KernelSU-Next:";
-          [ "${{ inputs.susfs }}" = "true" ] && INT="${INT}SuSFS:";
+          [ "${{ steps.eff.outputs.eff_susfs }}" = "true" ] && INT="${INT}SuSFS:";
           [ "${{ inputs.nomount }}" = "true" ] && INT="${INT}NoMount:";
           [ "${{ inputs.guard }}" = "true" ] && INT="${INT}Partition Guard:";
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | paste -sd: -)
@@ -430,7 +461,7 @@ jobs:
       # Absent on trees where SuSFS gated out (suppression) or KSU lacks
       # hooks (plain ref): presence of this file MEANS SuSFS built.
       - name: Upload SuSFS version
-        if: inputs.susfs != false
+        if: steps.eff.outputs.eff_susfs != 'false'
         uses: actions/upload-artifact@v4
         with:
           name: susfs-version-${{ steps.rev.outputs.rev }}
@@ -474,6 +505,18 @@ jobs:
         with:
           path: builder
           fetch-depth: 1
+      # Release only runs on manual dispatch (schedule keeps release=false),
+      # but recompute the SuSFS flag anyway so display logic has one source.
+      - name: Resolve effective inputs
+        id: eff
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            H=$(date -u +%H)
+            if [ "$H" -lt 12 ]; then EFF_SUSFS=true; else EFF_SUSFS=false; fi
+          else
+            EFF_SUSFS="${{ inputs.susfs }}"
+          fi
+          echo "eff_susfs=$EFF_SUSFS" >>"$GITHUB_OUTPUT"
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -506,7 +549,7 @@ jobs:
           # trees, plain KSU ref) are enumerated from the KSU files, which
           # exist for every ksu-enabled build. Absent files = off, not failed.
           SUSFS_DISPLAY="off"; SUSFS_TG="off"
-          if [ "${{ inputs.susfs }}" != "false" ]; then
+          if [ "${{ steps.eff.outputs.eff_susfs }}" != "false" ]; then
             SUSFS_DISPLAY="on"; SUSFS_ON=""; SUSFS_OFF=""; SUSFS_N=0
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue
@@ -570,7 +613,7 @@ jobs:
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
           {
             [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next $KSU_DISPLAY"
-            [ "${{ inputs.susfs }}" = "true" ] && echo "• SuSFS $SUSFS_TG"
+            [ "${{ steps.eff.outputs.eff_susfs }}" = "true" ] && echo "• SuSFS $SUSFS_TG"
             [ "${{ inputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
             [ "${{ inputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
             echo "• Fragments: $FRAGS"
