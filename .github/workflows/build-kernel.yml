@@ -454,22 +454,39 @@ jobs:
           path: release/
           if-no-files-found: ignore
 
+      # Rename to a unique file first: merge-multiple flattens every
+      # artifact into one dir, so 8 identically-named .ksu-version files
+      # would overwrite each other down to one (and match no reader glob).
+      - name: Stage KSU version
+        if: inputs.ksu != false
+        run: |
+          [ -f kernel/.ksu-version ] \
+            && cp kernel/.ksu-version "ksu-version-${{ steps.rev.outputs.rev }}.txt" \
+            || echo "no ksu version file; upload will skip"
       - name: Upload KSU version
         if: inputs.ksu != false
         uses: actions/upload-artifact@v4
         with:
           name: ksu-version-${{ steps.rev.outputs.rev }}
-          path: kernel/.ksu-version
+          path: ksu-version-${{ steps.rev.outputs.rev }}.txt
           if-no-files-found: ignore
 
       # Absent on trees where SuSFS gated out (suppression) or KSU lacks
       # hooks (plain ref): presence of this file MEANS SuSFS built.
+      # Same unique-name staging (see KSU above); gated trees simply have
+      # no .susfs-version, so the upload skips and absence still means off.
+      - name: Stage SuSFS version
+        if: steps.eff.outputs.eff_susfs != 'false'
+        run: |
+          [ -f kernel/.susfs-version ] \
+            && cp kernel/.susfs-version "susfs-version-${{ steps.rev.outputs.rev }}.txt" \
+            || echo "susfs gated or skipped here; upload will skip"
       - name: Upload SuSFS version
         if: steps.eff.outputs.eff_susfs != 'false'
         uses: actions/upload-artifact@v4
         with:
           name: susfs-version-${{ steps.rev.outputs.rev }}
-          path: kernel/.susfs-version
+          path: susfs-version-${{ steps.rev.outputs.rev }}.txt
           if-no-files-found: ignore
 
   # One release per run: gathers every AnyKernel3 zip (partial success
