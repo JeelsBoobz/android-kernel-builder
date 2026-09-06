@@ -17,7 +17,7 @@ Kconfig fragment system. Flashable AnyKernel3 zips land on
 ## What a build produces (per branch)
 
 - `Image` (raw, uncompressed — compressed variants panic at boot), `vmlinux`, `System.map`
-- `anykernel-<rev>.zip` — self-contained flashable zip (vendored AK3 +
+- `anykernel-<rev>.zip` (`<rev>` carries the sublevel, e.g. `anykernel-android12-5.10-269-stable.zip`) — self-contained flashable zip (vendored AK3 +
   custom `anykernel.sh`), published to **Releases**
 - KernelSU-Next baked in (`ksu=true`), NoMount built-in (`nomount=true`),
   Partition Guard active (`guard=true`), SuSFS hiding (`susfs=true`,
