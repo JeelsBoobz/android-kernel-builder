@@ -177,7 +177,7 @@ else
     if [ ! -f "common/$4" ]; then
       echo "setup-susfs: WARN header gone in-tree, skip restore: $4" >&2; return 0
     fi
-    sed -i "/$2/a $3" "common/$1"
+    sed -i "0,/$2/a $3" "common/$1"
   }
   case "$GKI_VER" in
     gki-android13-5.15|gki-android14-5.15)
