@@ -67,7 +67,7 @@ while IFS= read -r f; do
       if printf '%s' "$line" | grep -qE '^[[:space:]]*(static[[:space:]]+)?(struct[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*[[:space:]*]*|union[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*[[:space:]*]*|enum[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*|void|int|long|char|short|bool|u8|u16|u32|u64|s8|s16|s32|s64|size_t|ssize_t|unsigned|const)([[:space:]*]|$)|^[[:space:]]*#'; then
         case "$line" in *'{'*) code="${line#*\{}";; *) continue;; esac
       fi
-      for sym in $(printf '%s' "$code" | grep -o -E '[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*\(' | tr -d ' \t('); do
+      for sym in $(printf '%s' "$code" | grep -o -E '[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*\(' | tr -d ' \t(' || true); do
         case "$sym" in
           if|for|while|switch|return|sizeof|typeof|alignof|_Static_assert) continue ;;
         esac
