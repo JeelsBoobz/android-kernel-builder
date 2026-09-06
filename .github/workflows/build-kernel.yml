@@ -533,10 +533,10 @@ jobs:
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | tr '\n' ' ')
           # Resolved KSU versions (one "TAG SHA REF" file per built branch).
           # Uniform -> single value; mixed -> common plus branch outliers;
-          # absent -> the requested ref (old text). powers the table + telegram.
-          KSU_DISPLAY="off"
+          # absent -> the requested ref, still true-led. powers the table + telegram.
+          KSU_DISPLAY="false"
           if [ "${{ inputs.ksu }}" != "false" ]; then
-            KSU_DISPLAY="on (ref: ${{ inputs.ksu_ref || 'latest tag' }})"
+            KSU_DISPLAY="true (ref: ${{ inputs.ksu_ref || 'latest tag' }})"
             KSU_FIRST=""; KSU_OUT=""
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue
@@ -546,15 +546,15 @@ jobs:
               if [ -z "$KSU_FIRST" ]; then KSU_FIRST="$d"; KSU_OUT="$d";
               elif [ "$d" != "$KSU_FIRST" ]; then KSU_OUT="$KSU_OUT; $b: $d"; fi
             done
-            [ -n "$KSU_FIRST" ] && KSU_DISPLAY="$KSU_OUT"
+            [ -n "$KSU_FIRST" ] && KSU_DISPLAY="true: $KSU_OUT"
           fi
           # Resolved SuSFS versions (one "GKI_VER SHA REF" file per branch
           # that BUILT WITH SuSFS). Branches that built without it (gated
           # trees, plain KSU ref) are enumerated from the KSU files, which
-          # exist for every ksu-enabled build. Absent files = off, not failed.
-          SUSFS_DISPLAY="off"; SUSFS_TG="off"
+          # exist for every ksu-enabled build. Absent files = false, not failed.
+          SUSFS_DISPLAY="false"; SUSFS_TG="false"
           if [ "${{ steps.eff.outputs.eff_susfs }}" != "false" ]; then
-            SUSFS_DISPLAY="on"; SUSFS_ON=""; SUSFS_OFF=""; SUSFS_N=0
+            SUSFS_ON=""; SUSFS_OFF=""; SUSFS_N=0
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue
               b=$(basename "$vf" .txt); b=${b#ksu-version-}
@@ -569,12 +569,10 @@ jobs:
               fi
             done
             if [ -n "$SUSFS_ON" ]; then
-              SUSFS_DISPLAY="$SUSFS_ON"
+              SUSFS_DISPLAY="true: $SUSFS_ON"
               [ -n "$SUSFS_OFF" ] && SUSFS_DISPLAY="$SUSFS_DISPLAY; off: $SUSFS_OFF"
-              SUSFS_TG="on ($SUSFS_N trees)"
+              SUSFS_TG="true ($SUSFS_N trees)"
               [ -n "$SUSFS_OFF" ] && SUSFS_TG="$SUSFS_TG; off: $SUSFS_OFF"
-            elif [ -n "$SUSFS_OFF" ]; then
-              SUSFS_DISPLAY="off ($SUSFS_OFF)"
             fi
           fi
           {
@@ -616,8 +614,8 @@ jobs:
           HLESC=$(printf '%s' "$HL" | sed 's/[&|\\/]/\\&/g')
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
           {
-            [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next $KSU_DISPLAY"
-            [ "${{ steps.eff.outputs.eff_susfs }}" = "true" ] && echo "• SuSFS $SUSFS_TG"
+            [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next: $KSU_DISPLAY"
+            [ "${{ steps.eff.outputs.eff_susfs }}" = "true" ] && echo "• SuSFS: $SUSFS_TG"
             [ "${{ inputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
             [ "${{ inputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
             echo "• Fragments: $FRAGS"
