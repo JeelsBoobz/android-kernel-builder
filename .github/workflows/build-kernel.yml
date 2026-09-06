@@ -8,7 +8,7 @@ on:
         description: "Branch to build (or 'all')"
         default: "all"
       our_revision:
-        description: "Override common revision (default: per-branch -stable, fallback -lts)"
+        description: "Override common revision (default: per-branch -stable, fallback -lts; 'lts' = force per-branch fallback, e.g. to debug stable-vs-lts)"
         default: ""
       extra_config:
         description: "Inline CONFIG lines for this run only, comma-separated (e.g. 'CONFIG_TCP_CONG_BBR=y')"
@@ -136,7 +136,7 @@ jobs:
           WANT: ${{ matrix.our_branch }}
           FALLBACK: ${{ matrix.fallback_branch }}
         run: |
-          if [ -n "$OVERRIDE" ]; then REV="$OVERRIDE"; else
+          if [ "$OVERRIDE" = "lts" ]; then REV="$FALLBACK"; elif [ -n "$OVERRIDE" ]; then REV="$OVERRIDE"; else
             if git ls-remote --heads "https://github.com/sysretq0/android-kernel-common" "$WANT" | grep -q .; then REV="$WANT"; else REV="$FALLBACK"; fi
           fi
           echo "rev=$REV" >>"$GITHUB_OUTPUT"
