@@ -81,11 +81,12 @@ jobs:
           MANDIR="$GITHUB_WORKSPACE/builder/merges/manual/$OUT"
           [ -f "$RESOL" ] || { echo "::error::no resolutions file: merges/$OUT.resolutions"; exit 2; }
           ARGS=(--upstream-url "$UPSTREAM_URL" --stable-url "$STABLE_URL"
-            --dest "https://x-access-token:${DEST_TOKEN}@github.com/${DEST_REPO}.git"
+            --dest "https://github.com/${DEST_REPO}.git"
             --lts "${{ matrix.lts }}" --stable "${{ matrix.stable }}"
             --out "$OUT" --review "$OUT-review"
             --resolutions "$RESOL" --manual-dir "$MANDIR"
             --workdir "work-$OUT")
+          export DEST_TOKEN="${DEST_TOKEN}"
           if [ "${{ inputs.promote }}" = "true" ]; then ARGS+=(--promote); fi
           bash "$GITHUB_WORKSPACE/builder/tools/merge-with-resolutions.sh" "${ARGS[@]}" | tee /tmp/mwr.log
           {

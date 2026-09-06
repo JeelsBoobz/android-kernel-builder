@@ -7,10 +7,13 @@
 # same script ("on and on").
 #
 #   merge-with-resolutions.sh --upstream-url <url> --stable-url <url>
-#     --dest <push-url> --lts <branch> --stable <branch>
+#     --dest <plain-https-repo-url> --lts <branch> --stable <branch>
 #     --out <branch> --review <branch>
 #     --resolutions <file> --manual-dir <dir>
 #     [--promote] [--workdir <dir>]
+#
+# Auth: DEST_TOKEN env (never embedded in the remote URL, so it cannot
+# leak via push output; sent only as an http extraheader).
 #
 # Resolutions file: lines "<path> = ours|theirs|manual" (# comments,
 # blanks ignored). "ours"/"theirs" check out that side whole (verified
@@ -79,11 +82,14 @@ if [ -n "$OLD" ] && git merge-base --is-ancestor "$LTS_TIP" "$OLD" 2>/dev/null \
 fi
 
 push_ref() { # $1 sha $2 ref $3 old-or-empty
-  local sha=$1 ref=$2 old=$3 lease
+  local sha=$1 ref=$2 old=$3 lease auth
+  if [ -z "${DEST_TOKEN:-}" ]; then log "FAIL: DEST_TOKEN unset (push needs it)"; exit 2; fi
   if [ -n "$old" ]; then lease="--force-with-lease=refs/heads/$ref:$old"
   else lease="--force-with-lease=refs/heads/$ref:"; fi
+  auth=$(printf 'x-access-token:%s' "$DEST_TOKEN" | base64 -w0)
   # shellcheck disable=SC2086
-  git push --verbose $lease dest "$sha:refs/heads/$ref"
+  git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+    push $lease dest "$sha:refs/heads/$ref"
 }
 
 GITID=(-c user.name=kernel-mirror -c user.email=kernel-mirror@users.noreply.github.com)
