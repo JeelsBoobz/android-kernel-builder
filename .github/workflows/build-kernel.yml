@@ -655,20 +655,39 @@ jobs:
             --data-urlencode "parse_mode=HTML" \
             --data-urlencode "text=$(cat telegram-post.txt)") \
             && echo "telegram posted" || { echo "telegram post FAILED"; exit 1; }
-          # Optional forward (TELEGRAM_FORWARD_CHAT_ID): keeps the channel
-          # attribution header. Bot must be admin (post rights) in target.
+          # Optional forwards (TELEGRAM_FORWARD_CHAT_ID): comma-separated
+          # "chat[:topic]" list; keeps the channel attribution header.
+          # TG_TOPIC is the legacy single-target topic (applies when the
+          # entry carries no inline :topic). Bot must be a member of each
+          # target (admin only if the topic restricts posting to admins).
           MID=$(printf '%s' "$RESP" | grep -o '"message_id":[0-9]*' | head -1 | cut -d: -f2)
           if [ -n "${TG_FWD:-}" ] && [ -n "$MID" ]; then
-            # TG_TOPIC targets one forum topic (message_thread_id); empty =
-            # General. Stored separately so the chat id stays a bare id.
-            EXTRA_ARGS=""
-            [ -n "${TG_TOPIC:-}" ] && EXTRA_ARGS="--data-urlencode message_thread_id=${TG_TOPIC}"
-            # shellcheck disable=SC2086
-            curl -sf --max-time 30 -X POST "https://api.telegram.org/bot${TG_TOKEN}/forwardMessage" \
-              --data-urlencode "chat_id=${TG_FWD}" \
-              --data-urlencode "from_chat_id=${TG_CHAT}" \
-              --data-urlencode "message_id=${MID}" $EXTRA_ARGS > /dev/null \
-              && echo "telegram forwarded to $TG_FWD${TG_TOPIC:+ topic $TG_TOPIC}" || { echo "telegram forward FAILED (is the bot admin there?)"; exit 1; }
+            FWD_FAIL=""
+            NSPEC=$(printf '%s' "$TG_FWD" | awk -F, '{print NF}')
+            OLDIFS=$IFS; IFS=,
+            for spec in $TG_FWD; do
+              chat="${spec%%:*}"; topic="${spec#*:}"
+              # Legacy single-target form (bare id + TG_TOPIC secret) only
+              # applies with exactly one entry; otherwise topic-less = General.
+              if [ "$topic" = "$spec" ]; then
+                if [ "$NSPEC" = "1" ]; then topic="${TG_TOPIC:-}"; else topic=""; fi
+              fi
+              [ -z "$chat" ] && continue
+              ARGS=""
+              [ -n "$topic" ] && ARGS="--data-urlencode message_thread_id=${topic}"
+              # shellcheck disable=SC2086
+              if curl -sf --max-time 30 -X POST "https://api.telegram.org/bot${TG_TOKEN}/forwardMessage" \
+                --data-urlencode "chat_id=${chat}" \
+                --data-urlencode "from_chat_id=${TG_CHAT}" \
+                --data-urlencode "message_id=${MID}" $ARGS > /dev/null; then
+                echo "telegram forwarded to $chat${topic:+ topic $topic}"
+              else
+                echo "telegram forward FAILED for $chat${topic:+ topic $topic} (is the bot in there with post rights?)"
+                FWD_FAIL="${FWD_FAIL} $chat"
+              fi
+            done
+            IFS=$OLDIFS
+            [ -z "$FWD_FAIL" ] || { echo "forward failures:$FWD_FAIL"; exit 1; }
           else
             echo "no forward chat configured; skipping"
           fi
