@@ -29,8 +29,10 @@ jobs:
           [ -n "$TG_TOKEN" ] && [ -n "$TG_GROUP" ] && [ -n "$TG_CHAN" ] || \
             { echo "telegram group secrets unset; skipping"; exit 0; }
           PIN_FILE=.ci/group-pin.txt
+          OFF_FILE=.ci/tg-offset.txt
           RECORDED=$(cat "$PIN_FILE" 2>/dev/null || echo "")
-          export RECORDED
+          OFFSET=$(cat "$OFF_FILE" 2>/dev/null || echo "")
+          export RECORDED OFFSET
           # 2>&1 + || guard: under bash -e a bare $(...) discards the
           # script's own diagnostics on failure (that hid a bug once).
           ACTION=$(python3 tools/telegram-unpin.py 2>&1) || PYRC=$?
@@ -39,11 +41,19 @@ jobs:
           if [ -f /tmp/newpin ]; then
             NEW=$(cat /tmp/newpin); OLD=$(cat "$PIN_FILE" 2>/dev/null || echo "")
             if [ "$NEW" != "$OLD" ]; then
-              mkdir -p .ci; printf '%s' "$NEW" > "$PIN_FILE"
-              git config user.name "github-actions[bot]"
-              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git add "$PIN_FILE"
-              git commit -m "telegram: track manual group pin ($NEW)" || true
-              git push || echo "WARN: pin memory push failed"
+              mkdir -p .ci; printf '%s' "$NEW" > "$PIN_FILE"; CHANGED="$CHANGED pin"
             fi
+          fi
+          if [ -f /tmp/newoffset ]; then
+            NEW=$(cat /tmp/newoffset); OLD=$(cat "$OFF_FILE" 2>/dev/null || echo "")
+            if [ "$NEW" != "$OLD" ]; then
+              mkdir -p .ci; printf '%s' "$NEW" > "$OFF_FILE"; CHANGED="$CHANGED offset"
+            fi
+          fi
+          if [ -n "${CHANGED:-}" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add "$PIN_FILE" "$OFF_FILE"
+            git commit -m "telegram: track group pin memory ($CHANGED )" || true
+            git push || echo "WARN: pin memory push failed"
           fi
