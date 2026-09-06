@@ -76,7 +76,12 @@ jobs:
           set -euo pipefail
           OUT="${LTS/-lts/-stable}"
           REVIEW="${OUT}-review"
-          DEST="https://x-access-token:${DEST_TOKEN}@github.com/${DEST_REPO}.git"
+          DEST="https://github.com/${DEST_REPO}.git"
+          dpush() {
+            local auth
+            auth=$(printf 'x-access-token:%s' "${DEST_TOKEN}" | base64 -w0)
+            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push "$@"
+          }
           VERDICT=""; REASONS=""
 
           LTS_TIP=$(git ls-remote "$UPSTREAM_URL" "refs/heads/$LTS" | cut -f1)
@@ -204,6 +209,6 @@ jobs:
             if [ -n "${OLD:-}" ]; then lease="--force-with-lease=refs/heads/$OUT:$OLD";
             else lease="--force-with-lease=refs/heads/$OUT:"; fi
             # shellcheck disable=SC2086
-            git push --verbose $lease dest "$REV:refs/heads/$OUT"
+            dpush $lease dest "$REV:refs/heads/$OUT"
           fi
           echo done

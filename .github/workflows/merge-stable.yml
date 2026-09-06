@@ -105,7 +105,15 @@ jobs:
           git init -q
           git remote add upstream "$UPSTREAM_URL"
           git remote add stable "$STABLE_URL"
-          git remote add dest "https://x-access-token:${DEST_TOKEN}@github.com/${DEST_REPO}.git"
+          git remote add dest "https://github.com/${DEST_REPO}.git"
+
+          # Authenticated push without embedding the token in the remote
+          # URL (extraheader keeps it out of logs/traces).
+          dpush() {
+            local auth
+            auth=$(printf 'x-access-token:%s' "${DEST_TOKEN}" | base64 -w0)
+            git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push "$@"
+          }
 
           git fetch --no-tags upstream "refs/heads/$LTS:refs/remotes/upstream/$LTS"
           git fetch --no-tags stable "refs/heads/$STABLE:refs/remotes/stable/$STABLE"
@@ -155,7 +163,7 @@ jobs:
             if [ -n "$old" ]; then lease="--force-with-lease=refs/heads/$ref:$old";
             else lease="--force-with-lease=refs/heads/$ref:"; fi
             # shellcheck disable=SC2086
-            git push --verbose $lease dest "$sha:refs/heads/$ref"
+            dpush $lease dest "$sha:refs/heads/$ref"
           }
 
           quarantine() { # $1 reason_file $2 title
@@ -167,7 +175,7 @@ jobs:
             if [ -n "$OLD_REVIEW" ]; then rlease="--force-with-lease=refs/heads/$REVIEW_OUT:$OLD_REVIEW";
             else rlease="--force-with-lease=refs/heads/$REVIEW_OUT:"; fi
             # shellcheck disable=SC2086
-            git push --verbose $rlease dest "$MERGED:refs/heads/$REVIEW_OUT" || true
+            dpush $rlease dest "$MERGED:refs/heads/$REVIEW_OUT" || true
             if [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
               TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
               GH_TOKEN="$TOKEN" gh issue create --repo "$DEST_REPO" \
@@ -255,7 +263,7 @@ jobs:
           # Backup tag on previous tip before any force-with-lease push.
           if [ -n "$OLD" ]; then
             git tag "prev-$OUT-$GITHUB_RUN_ID" "$OLD" || true
-            git push dest "refs/tags/prev-$OUT-$GITHUB_RUN_ID" || true
+            dpush dest "refs/tags/prev-$OUT-$GITHUB_RUN_ID" || true
           fi
 
           # Supervisor runs on EVERY merge, clean or AI: mergable != compatible.

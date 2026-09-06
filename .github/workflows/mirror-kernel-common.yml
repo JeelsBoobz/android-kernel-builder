@@ -68,7 +68,11 @@ jobs:
           git init --bare -q mirror.git
           cd mirror.git
           git remote add upstream "$UPSTREAM_URL"
-          git remote add dest "https://x-access-token:${DEST_TOKEN}@github.com/${DEST_REPO}.git"
+          git remote add dest "https://github.com/${DEST_REPO}.git"
+          # Token via repo-local extraheader, never in the URL (keeps it
+          # out of push output/traces for push_one and any other push).
+          git config http.https://github.com/.extraheader \
+            "AUTHORIZATION: basic $(printf 'x-access-token:%s' "${DEST_TOKEN}" | base64 -w0)"
 
           # Full history: no --depth, no --filter, no --shallow.
           git fetch --no-tags --prune upstream "refs/heads/$B:refs/remotes/upstream/$B"
@@ -187,7 +191,9 @@ jobs:
           git init --bare -q tags.git
           cd tags.git
           git remote add upstream "$UPSTREAM_URL"
-          git remote add dest "https://x-access-token:${DEST_TOKEN}@github.com/${DEST_REPO}.git"
+          git remote add dest "https://github.com/${DEST_REPO}.git"
+          git config http.https://github.com/.extraheader \
+            "AUTHORIZATION: basic $(printf 'x-access-token:%s' "${DEST_TOKEN}" | base64 -w0)"
 
           TIPS=()
           for b in "${BRANCHES[@]}"; do
@@ -213,7 +219,7 @@ jobs:
           # existing tags never move, new ones are added. Commits are already
           # on dest (branches synced first), so only tag objects travel.
           if [ -s specs.txt ]; then
-            xargs -a specs.txt -n 200 git push --verbose dest
+            xargs -a specs.txt -n 200 git push dest
           fi
           echo done
 
