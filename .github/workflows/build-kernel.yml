@@ -75,6 +75,19 @@ jobs:
           fi
           echo "matrix=$M" >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
+      - name: Summary
+        run: |
+          J=$(cat "variants/${{ inputs.variant }}.json")
+          {
+            echo "## Variant \`${{ inputs.variant }}\` → branch \`${{ steps.v.outputs.branch }}\`"
+            echo ""
+            echo "| branch | ksu | susfs | nomount | guard |"
+            echo "|---|---|---|---|---|"
+            jq -r '.branches[] | "| \(.branch) | \(.ksu_ref[0:8]) | \((.susfs_ref // "")[0:8]) | \((.nomount_ref // "")[0:8]) | \((.guard_ref // "")[0:8]) |"' <<<"$J"
+            echo ""
+            echo "- ksu=${{ steps.v.outputs.ksu }} susfs=${{ steps.v.outputs.susfs }} bbrv3=${{ steps.v.outputs.bbrv3 }} nomount=${{ steps.v.outputs.nomount }} guard=${{ steps.v.outputs.guard }} fragments=${{ steps.v.outputs.fragments }}"
+            echo "- release=${{ inputs.release }} (Telegram always on release)"
+          } >>"$GITHUB_STEP_SUMMARY"
 
   build:
     needs: resolve
