@@ -5,6 +5,7 @@
 # Usage:
 #   pack-anykernel.sh --image <Image.lz4|Image.gz|Image> --rev <name>
 #     [--features <"a:b:c">] [--out <zip path>] [--akdir <anykernel/ dir>]
+#     [--kconfig <.config>] [--ikconfig <extracted ikconfig>]
 #
 # --features is a colon-separated list expanded to one "[check] item"
 # ui_print line per entry, replacing the @FEATURE_LINES@ placeholder
@@ -18,7 +19,7 @@
 # device-generic.
 set -euo pipefail
 
-IMAGE=""; REV=""; OUT=""; AKDIR=""; FEATURES="stock GKI"; KCONFIG=""
+IMAGE=""; REV=""; OUT=""; AKDIR=""; FEATURES="stock GKI"; KCONFIG=""; IKCONFIG=""
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 while [ $# -gt 0 ]; do
@@ -28,6 +29,7 @@ while [ $# -gt 0 ]; do
     --features) FEATURES="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --kconfig) KCONFIG="$2"; shift 2 ;;
+    --ikconfig) IKCONFIG="$2"; shift 2 ;;
     --akdir) AKDIR="$2"; shift 2 ;;
     *) echo "pack-anykernel: unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -62,7 +64,10 @@ grep -q "@REV@\|@FEATURE_LINES@\|@DATE@" "$stage/anykernel.sh" && { echo "pack-a
 cp -a "$IMAGE" "$stage/"
 # Resolved kernel .config alongside the image (stock GKI already has
 # IKCONFIG=y, so this mirrors /proc/config.gz for offline inspection).
+# ikconfig is the same config extracted back out of the built Image via
+# scripts/extract-ikconfig -- proof of what actually shipped in the binary.
 if [ -n "${KCONFIG:-}" ] && [ -f "$KCONFIG" ]; then cp -a "$KCONFIG" "$stage/kernel.config"; fi
+if [ -n "${IKCONFIG:-}" ] && [ -f "$IKCONFIG" ]; then cp -a "$IKCONFIG" "$stage/ikconfig"; fi
 cat > "$stage/version" <<EOF
 $REV
 Built $(date -u +"%Y-%m-%d %H:%M UTC")

@@ -58,7 +58,7 @@ jobs:
           busy=$(gh run list --repo "$BUILDER" --workflow build-kernel.yml --status in_progress --limit 1 --json databaseId --jq length)
           [ "$busy" = "0" ] || { echo "build already running; retry next tick"; rm .ci/upstream-shas.txt.new; exit 0; }
           gh workflow run build-kernel.yml --repo "$BUILDER" --ref main \
-            -f release=true -f ksu_ref='android17-6.18-stable:dev'
+            -f variant=susfs -f release=true
           mv .ci/upstream-shas.txt.new .ci/upstream-shas.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

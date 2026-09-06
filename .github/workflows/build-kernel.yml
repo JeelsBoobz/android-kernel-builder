@@ -4,156 +4,91 @@ name: build-kernel
 on:
   workflow_dispatch:
     inputs:
+      variant:
+        description: "Variant from variants/ (per-version model)"
+        default: "plain"
+        type: choice
+        options: [plain, susfs]
       branch:
         description: "Branch to build (or 'all')"
         default: "all"
-      our_revision:
-        description: "Override common revision (default: per-branch -stable, fallback -lts; 'lts' = force per-branch fallback, e.g. to debug stable-vs-lts)"
-        default: ""
-      extra_config:
-        description: "Inline CONFIG lines for this run only, comma-separated (e.g. 'CONFIG_TCP_CONG_BBR=y')"
-        default: ""
-      ksu:
-        description: "Integrate pershoot/KernelSU-Next driver"
-        type: boolean
-        default: true
-      ksu_ref:
-        description: "KernelSU-Next ref: plain (all trees) or branch:ref map, e.g. 'android17-6.18-stable:dev' (default: latest tag)"
-        default: ""
-      nomount:
-        description: "Integrate maxsteeel/nomount VFS subsystem"
-        type: boolean
-        default: true
-      nomount_ref:
-        description: "NoMount branch/tag/commit (default: dev branch)"
-        default: ""
-      guard:
-        description: "Integrate Partition Guard LSM (NVRAM/persist/EFS)"
-        type: boolean
-        default: true
-      guard_ref:
-        description: "Partition Guard branch/tag/commit (default: main)"
-        default: ""
-      susfs:
-        description: "Integrate simonpunk SuSFS root hiding (needs ksu_ref dev-susfs; gated on 6.6/6.12/6.18)"
-        type: boolean
-        default: false
-      susfs_ref:
-        description: "SuSFS commit pin within the per-version branch (default: branch tip)"
-        default: ""
-      bbrv3:
-        description: "Integrate WildKernels BBRv3 TCP backport (5.10-6.6 only; dormant until selected)"
-        type: boolean
-        default: false
-      fragments:
-        description: "Apply repo fragment dirs (false = stock baseline; extra_config still applies)"
-        type: boolean
-        default: true
       release:
-        description: "Publish AnyKernel3 zips to GitHub Release (false = artifacts only)"
+        description: "Publish AnyKernel3 zips to GitHub Release + Telegram (false = artifacts only)"
         type: boolean
         default: false
-      telegram:
-        description: "Post the filled release template to Telegram channel (needs TELEGRAM_* secrets)"
-        type: boolean
-        default: true
       forward:
-        description: "Forward the announcement to TELEGRAM_FORWARD_CHAT_ID targets (default off)"
+        description: "Forward the Telegram announcement to forward targets (default off)"
         type: boolean
         default: false
-  # Every 12h, alternating: 05:00 UTC builds WITH SuSFS, 17:00 UTC WITHOUT
-  # (stateless alternation -- see the Resolve effective inputs steps; a
-  # missed run never desyncs a state file). Both always track -lts.
   schedule:
-    - cron: "0 5 * * *"
-    - cron: "0 17 * * *"
+    - cron: "0 */6 * * *"
 
-# Release publishing needs contents:write; artifact up/down needs
-# actions:write (declaring any scope narrows the rest, so both explicit).
 permissions:
   actions: write
   contents: write
 
 jobs:
-  # Pre-filter the build matrix so only requested branches spawn jobs.
-  # Empty input (schedule) or 'all' = build everything.
-  setup:
+  resolve:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set.outputs.matrix }}
+      matrix: ${{ steps.v.outputs.matrix }}
+      our_revision: ${{ steps.v.outputs.our_revision }}
+      ksu: ${{ steps.v.outputs.ksu }}
+      nomount: ${{ steps.v.outputs.nomount }}
+      guard: ${{ steps.v.outputs.guard }}
+      susfs: ${{ steps.v.outputs.susfs }}
+      bbrv3: ${{ steps.v.outputs.bbrv3 }}
+      fragments: ${{ steps.v.outputs.fragments }}
+      extra_config: ${{ steps.v.outputs.extra_config }}
+      branch: ${{ steps.v.outputs.branch }}
     steps:
-      - id: set
+      - uses: actions/checkout@v4
+      - id: v
         env:
-          ONLY: ${{ inputs.branch }}
+          VARIANT_IN: ${{ inputs.variant }}
+          BRANCH_IN: ${{ inputs.branch }}
+          EVENT: ${{ github.event_name }}
         run: |
-          ALL='{"include":[
-            {"our_branch":"android12-5.10-stable","fallback_branch":"android12-5.10-lts","manifest_branch":"common-android12-5.10-lts","build_kind":"build_sh"},
-            {"our_branch":"android13-5.10-stable","fallback_branch":"android13-5.10-lts","manifest_branch":"common-android13-5.10-lts","build_kind":"build_sh"},
-            {"our_branch":"android13-5.15-stable","fallback_branch":"android13-5.15-lts","manifest_branch":"common-android13-5.15-lts","build_kind":"build_sh"},
-            {"our_branch":"android14-5.15-stable","fallback_branch":"android14-5.15-lts","manifest_branch":"common-android14-5.15-lts","build_kind":"kleaf"},
-            {"our_branch":"android14-6.1-stable","fallback_branch":"android14-6.1-lts","manifest_branch":"common-android14-6.1-lts","build_kind":"kleaf"},
-            {"our_branch":"android15-6.6-stable","fallback_branch":"android15-6.6-lts","manifest_branch":"common-android15-6.6-lts","build_kind":"kleaf"},
-            {"our_branch":"android16-6.12-stable","fallback_branch":"android16-6.12-lts","manifest_branch":"common-android16-6.12-lts","build_kind":"kleaf"},
-            {"our_branch":"android17-6.18-stable","fallback_branch":"android17-6.18-lts","manifest_branch":"common-android17-6.18-lts","build_kind":"kleaf"}
-          ]}'
-          # Build methods: build.sh for 5.10 + android13-5.15 (era-default),
-          # Kleaf (tools/bazel) for android14-5.15 and newer.
-          if [ -z "$ONLY" ] || [ "$ONLY" = "all" ]; then
-            echo "matrix=$(echo "$ALL" | jq -c .)" >>"$GITHUB_OUTPUT"
+          if [ -n "$VARIANT_IN" ]; then V="$VARIANT_IN"; else V="plain"; fi
+          [ -f "variants/$V.json" ] || { echo "unknown variant: $V"; exit 2; }
+          J=$(cat "variants/$V.json")
+          get() { jq -r ".defaults[\"$1\"] | if type == \"boolean\" then tostring else . // \"\" end" <<<"$J"; }
+          echo "our_revision=$(get our_revision)" >>"$GITHUB_OUTPUT"
+          echo "ksu=$(get ksu)" >>"$GITHUB_OUTPUT"
+          echo "nomount=$(get nomount)" >>"$GITHUB_OUTPUT"
+          echo "guard=$(get guard)" >>"$GITHUB_OUTPUT"
+          echo "susfs=$(get susfs)" >>"$GITHUB_OUTPUT"
+          echo "bbrv3=$(get bbrv3)" >>"$GITHUB_OUTPUT"
+          echo "fragments=$(get fragments)" >>"$GITHUB_OUTPUT"
+          echo "extra_config=$(get extra_config)" >>"$GITHUB_OUTPUT"
+          if [ -z "$BRANCH_IN" ] || [ "$BRANCH_IN" = "all" ]; then B="all"; else B="$BRANCH_IN"; fi
+          echo "branch=$B" >>"$GITHUB_OUTPUT"
+          if [ "$B" = "all" ]; then
+            M=$(jq -c '{include: [.branches[] | {our_branch: .branch, fallback_branch: .fallback, manifest_branch: .manifest, build_kind: .kind, ksu_ref: .ksu_ref}]}' <<<"$J")
           else
-            echo "matrix=$(echo "$ALL" | jq -c --arg o "$ONLY" '{include: [.include[] | select(.our_branch==$o or .fallback_branch==$o)]}')" >>"$GITHUB_OUTPUT"
+            M=$(jq -c --arg o "$B" '{include: [.branches[] | select(.branch == $o or .fallback == $o) | {our_branch: .branch, fallback_branch: .fallback, manifest_branch: .manifest, build_kind: .kind, ksu_ref: .ksu_ref}]}' <<<"$J")
+            [ "$(jq '.include | length' <<<"$M")" -gt 0 ] || { echo "no variant branch matches: $B"; exit 2; }
           fi
+          echo "matrix=$M" >>"$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   build:
-    needs: setup
+    needs: resolve
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.resolve.outputs.matrix) }}
     steps:
-      - name: Checkout builder (for manifest template)
+      - name: Checkout builder
         uses: actions/checkout@v4
         with:
           path: builder
 
-      # Effective inputs: manual dispatch uses inputs.* verbatim; scheduled
-      # runs alternate statelessly (05:00 UTC SuSFS on, 17:00 UTC off) and
-      # always track -lts. 6.18 always needs the dev KSU ref (policydb);
-      # SuSFS trees need dev-susfs; KSU-only trees take plain dev.
-      - name: Resolve effective inputs
-        id: eff
-        run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            H=$(date -u +%H)
-            if [ "$H" -lt 12 ]; then EFF_SUSFS=true; else EFF_SUSFS=false; fi
-            EFF_REV=lts
-            EFF_BBRV3=true # trial 34026781334 green on all 8 (6.12/6.18 gated out)
-            if [ "$EFF_SUSFS" = "true" ]; then
-              EFF_KSU_REF="android12-5.10-stable:dev-susfs,android13-5.10-stable:dev-susfs,android13-5.15-stable:dev-susfs,android14-5.15-stable:dev-susfs,android14-6.1-stable:dev-susfs,android15-6.6-stable:dev,android16-6.12-stable:dev,android17-6.18-stable:dev"
-            else
-              EFF_KSU_REF="android17-6.18-stable:dev"
-            fi
-          else
-            EFF_SUSFS="${{ inputs.susfs }}"; EFF_REV="${{ inputs.our_revision }}"
-            EFF_BBRV3="${{ inputs.bbrv3 }}"; EFF_KSU_REF="${{ inputs.ksu_ref }}"
-          fi
-          echo "eff_susfs=$EFF_SUSFS" >>"$GITHUB_OUTPUT"
-          echo "eff_rev=$EFF_REV" >>"$GITHUB_OUTPUT"
-          echo "eff_bbrv3=$EFF_BBRV3" >>"$GITHUB_OUTPUT"
-          echo "eff_ksu_ref=$EFF_KSU_REF" >>"$GITHUB_OUTPUT"
-          cat "$GITHUB_OUTPUT"
-
-      # Throwaway runner: nuke preinstalled SDK/toolchain trees directly
-      # (vendored from the author's prior identity CloudFox-Kernel-Builder, no third-party action).
-      # Full kernel tree + prebuilts + bazel cache need tens of GB.
       - name: Free disk space
         run: |
           sudo bash "$GITHUB_WORKSPACE/builder/tools/free-disk-space.sh"
           df -h
 
-      # Kernel link far exceeds the 16GB runner RAM; 24G swap keeps
-      # LD/BTF/clang from OOM-killing (same as prior CloudFox work).
       - name: Add 24G swap
         run: |
           sudo swapoff -a
@@ -164,14 +99,11 @@ jobs:
           sudo swapon /swapfile
           free -h
 
-      # Resolve common revision: use our -stable branch if the merge has
-      # landed, else fall back to the mirrored -lts tip. Manual dispatch
-      # can force any revision via the our_revision input.
-      - name: Pick revision (stable if exists, else LTS)
+      - name: Pick revision
         id: rev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OVERRIDE: ${{ steps.eff.outputs.eff_rev }}
+          OVERRIDE: ${{ needs.resolve.outputs.our_revision }}
           WANT: ${{ matrix.our_branch }}
           FALLBACK: ${{ matrix.fallback_branch }}
         run: |
@@ -199,117 +131,73 @@ jobs:
           cd kernel
           repo sync -c -j$(nproc) --no-tags --fail-fast
 
-      # KernelSU-Next (pershoot fork): full clone (.git preserved, the
-      # installer needs stash/pull/describe), pin via ksu_ref or latest tag,
-      # symlink into common/drivers + Kconfig/Makefile hooks. Writes
-      # .fragments/kernelsu.config, picked up by the Apply step below.
       - name: Integrate KernelSU-Next
-        if: inputs.ksu != false
+        if: needs.resolve.outputs.ksu != 'false'
         run: |
           cd kernel
-          # ksu_ref is either a plain ref (all trees) or a per-branch
-          # map: branch:ref[,branch:ref...] (unmapped trees take the
-          # latest tag). Ref names cannot contain ':'; branch matches
-          # our_branch or fallback_branch.
-          WANT_REF="${{ steps.eff.outputs.eff_ksu_ref }}"
-          REF=""
-          if [[ "$WANT_REF" == *:* ]]; then
-            OLDIFS=$IFS; IFS=,
-            for pair in $WANT_REF; do
-              b="${pair%%:*}"; r="${pair#*:}"
-              if [ "$b" = "${{ matrix.our_branch }}" ] || \
-                 [ "$b" = "${{ matrix.fallback_branch }}" ]; then
-                REF="$r"
-              fi
-            done
-            IFS=$OLDIFS
-          else
-            REF="$WANT_REF"
-          fi
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-kernelsu-next.sh" --ref "$REF"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-kernelsu-next.sh" --ref "${{ matrix.ksu_ref }}"
 
-      # SuSFS (simonpunk kernel patches on KSU-Next@dev-susfs): EXPERIMENTAL,
-      # default off, 6.18 clean-skips (no upstream branch). Must run after
-      # KSU (verifies SUSFS hooks in the linked driver) and before NoMount.
-      # Writes .fragments/susfs.config, picked up by the Apply step below.
       - name: Integrate SuSFS
-        if: steps.eff.outputs.eff_susfs != 'false'
+        if: needs.resolve.outputs.susfs != 'false'
         run: |
           cd kernel
           bash "$GITHUB_WORKSPACE/builder/tools/setup-susfs.sh" \
-            --our-branch "${{ matrix.our_branch }}" --ref "${{ inputs.susfs_ref }}"
+            --our-branch "${{ matrix.our_branch }}"
 
-      # BBRv3 (WildKernels backports, version-gated): separate tcp_bbr3.c
-      # alongside BBRv1 (untouched); dormant until selected per-connection.
-      # Writes .fragments/bbrv3.config, picked up by the Apply step below.
       - name: Integrate BBRv3
-        if: steps.eff.outputs.eff_bbrv3 != 'false'
+        if: needs.resolve.outputs.bbrv3 != 'false'
         run: |
           cd kernel
           bash "$GITHUB_WORKSPACE/builder/tools/setup-bbrv3.sh" \
             --our-branch "${{ matrix.our_branch }}" \
             --patch-dir "$GITHUB_WORKSPACE/builder/patches/bbrv3"
 
-      # NoMount: same pattern (full clone, installer pins, symlink into
-      # common/fs + Makefile/Kconfig hooks, .fragments/nomount.config).
       - name: Integrate NoMount
-        if: inputs.nomount != false
+        if: needs.resolve.outputs.nomount != 'false'
         run: |
           cd kernel
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-nomount.sh" --ref "${{ inputs.nomount_ref }}"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-nomount.sh"
 
-      # Partition Guard (own LSM): symlink into common/security + Makefile /
-      # Kconfig / LSM-list hooks. Writes .fragments/guard.config.
       - name: Integrate Partition Guard
-        if: inputs.guard != false
+        if: needs.resolve.outputs.guard != 'false'
         run: |
           cd kernel
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-partition-guard.sh" --ref "${{ inputs.guard_ref }}"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-partition-guard.sh"
 
-      # Portable config injection, per era:
-      # - build.sh: merge fragments/common + fragments/<our_branch> (+ extra
-      #   .fragments) INTO gki_defconfig; self-heal re-canonicalizes after.
-      # - Kleaf: base defconfig must stay PRISTINE (stock check_defconfig runs
-      #   as its POST hook); fragments ride --defconfig_fragment instead.
-      # No fragments present = stock defconfig, these steps are no-ops.
       - name: Apply config fragments (build.sh era)
-        if: matrix.build_kind == 'build_sh' && (inputs.fragments != false || inputs.extra_config != '')
+        if: matrix.build_kind == 'build_sh' && (needs.resolve.outputs.fragments != 'false' || needs.resolve.outputs.extra_config != '')
         run: |
           cd kernel
           ARGS=(--kernel-dir common)
-          if [ "${{ inputs.fragments }}" != "false" ]; then
+          if [ "${{ needs.resolve.outputs.fragments }}" != "false" ]; then
             [ -d "$GITHUB_WORKSPACE/builder/fragments/common" ] &&
               ARGS+=(--fragment-dir "$GITHUB_WORKSPACE/builder/fragments/common")
             [ -d "$GITHUB_WORKSPACE/builder/fragments/${{ matrix.our_branch }}" ] &&
               ARGS+=(--fragment-dir "$GITHUB_WORKSPACE/builder/fragments/${{ matrix.our_branch }}")
             [ -d .fragments ] && ARGS+=(--fragment-dir .fragments)
           fi
-          [ -n "${{ inputs.extra_config }}" ] &&
-            ARGS+=(--extra-config "${{ inputs.extra_config }}")
+          [ -n "${{ needs.resolve.outputs.extra_config }}" ] &&
+            ARGS+=(--extra-config "${{ needs.resolve.outputs.extra_config }}")
           bash "$GITHUB_WORKSPACE/builder/tools/apply-fragments.sh" "${ARGS[@]}"
 
       - name: Stage Kleaf fragments
         id: kleaf_frag
-        if: matrix.build_kind == 'kleaf' && (inputs.fragments != false || inputs.extra_config != '')
+        if: matrix.build_kind == 'kleaf' && (needs.resolve.outputs.fragments != 'false' || needs.resolve.outputs.extra_config != '')
         run: |
           cd kernel
           ARGS=(--kernel-dir common)
-          if [ "${{ inputs.fragments }}" != "false" ]; then
+          if [ "${{ needs.resolve.outputs.fragments }}" != "false" ]; then
             [ -d "$GITHUB_WORKSPACE/builder/fragments/common" ] &&
               ARGS+=(--fragment-dir "$GITHUB_WORKSPACE/builder/fragments/common")
             [ -d "$GITHUB_WORKSPACE/builder/fragments/${{ matrix.our_branch }}" ] &&
               ARGS+=(--fragment-dir "$GITHUB_WORKSPACE/builder/fragments/${{ matrix.our_branch }}")
             [ -d .fragments ] && ARGS+=(--fragment-dir .fragments)
           fi
-          [ -n "${{ inputs.extra_config }}" ] &&
-            ARGS+=(--extra-config "${{ inputs.extra_config }}")
+          [ -n "${{ needs.resolve.outputs.extra_config }}" ] &&
+            ARGS+=(--extra-config "${{ needs.resolve.outputs.extra_config }}")
           bash "$GITHUB_WORKSPACE/builder/tools/stage-kleaf-fragments.sh" "${ARGS[@]}"
           [ -f common/builder_fragments.config ] && echo "has=true" >>"$GITHUB_OUTPUT" || echo "has=false" >>"$GITHUB_OUTPUT"
 
-      # Built-in posture orphans: a =y select forces the target built-in
-      # while the module list still demands its .ko (method: WildKernels
-      # CIFS action). Version- + selector-gated inside the script; upstream
-      # layout drift fails fast instead of silently.
       - name: Drop stale module outs
         if: matrix.build_kind == 'kleaf'
         run: |
@@ -321,35 +209,28 @@ jobs:
             --tree common --kversion 6.18 --when-symbol CONFIG_CIFS \
             --drop fs/netfs/netfs.ko --drop lib/crypto/libarc4.ko
 
-      # Debug: resolved values for fragment-touched symbols. Best effort
-      # (never fails the build); ground truth when Kleaf's module/ABI
-      # checks disagree with our Kconfig reading.
       - name: Dump resolved config
         if: matrix.build_kind == 'kleaf'
         run: |
           cd kernel
-          # Same fragment flag as the real build: without it this prints
-          # stock values (useless for our delta).
           tools/bazel build --defconfig_fragment=//common:builder_fragments //common:kernel_aarch64_config 2>&1 | tail -3 || true
-          echo "--- cquery outputs:"
-          tools/bazel cquery --output=files //common:kernel_aarch64_config 2>&1 | head -10 || true
-          echo "--- config dir:"
-          ls -R bazel-bin/common/kernel_aarch64_config/ 2>/dev/null | head -30 || echo "(no dir)"
           CFG=""
           for f in $(find bazel-bin/common/kernel_aarch64_config -type f 2>/dev/null); do
             if grep -qm1 "Kernel Configuration" "$f" 2>/dev/null; then CFG="$f"; break; fi
           done
           if [ -n "$CFG" ]; then
-            echo "dump-resolved-config: using $CFG"
-            grep -E "^(# )?CONFIG_(ZRAM|ZSMALLOC|ZSWAP|ZBUD|FRONTSWAP|NETFS_SUPPORT|CIFS|CIFS_XATTR|CIFS_POSIX|TCP_CONG_BBR|TCP_CONG_BIC|TCP_CONG_WESTWOOD|TCP_CONG_HTCP|TCP_CONG_CUBIC|TCP_CONG_ADVANCED|KPROBES|EXT4_FS|NOMOUNT|PARTITION_GUARD|OVERLAY_FS|FUSE_FS|TMPFS|TMPFS_XATTR|TMPFS_POSIX_ACL|SECURITYFS|CONFIGFS_FS|WIREGUARD|CAKE|IP_SET|IP6_NF_NAT|IP6_NF_TARGET_MASQUERADE|NETFILTER_XT_SET|NETFILTER_XT_MATCH_ADDRTYPE|NETFILTER_XT_MATCH_RECENT|NETFILTER_XT_TARGET_LOG|NETWORK_FILESYSTEMS|KEYS|USB_CONFIGFS_RNDIS|USB_CONFIGFS_ECM|USB_CONFIGFS_MASS_STORAGE|USB_F_MASS_STORAGE|USB_SERIAL|NTFS3_FS|NTSYNC|SCSI_UFS_MEDIATEK)(=| is not set)" "$CFG" | head -80
+            ARGS=(--config "$CFG")
+            [ -d "$GITHUB_WORKSPACE/builder/fragments/common" ] &&
+              ARGS+=(--fragment-dir "$GITHUB_WORKSPACE/builder/fragments/common")
+            [ -d "$GITHUB_WORKSPACE/builder/fragments/${{ matrix.our_branch }}" ] &&
+              ARGS+=(--fragment-dir "$GITHUB_WORKSPACE/builder/fragments/${{ matrix.our_branch }}")
+            [ -d .fragments ] && ARGS+=(--fragment-dir .fragments)
+            bash "$GITHUB_WORKSPACE/builder/tools/dump-resolved-config.sh" "${ARGS[@]}"
           else
             echo "dump-resolved-config: no Kconfig file found under kernel_aarch64_config/"
           fi
 
-      # setlocalversion stamps -dirty on ANY uncommitted change at compile
-      # time, so commit the whole tree before building. Self-heal does the
-      # same at its end (build.sh path); this covers Kleaf + everything else.
-      - name: Commit tree (avoid -dirty version)
+      - name: Commit tree
         run: |
           cd kernel
           if [ -d common/.git ]; then
@@ -361,10 +242,6 @@ jobs:
             git -C common status --short | head -5
           fi
 
-      # build.sh only: check_defconfig requires the committed defconfig to
-      # byte-match canonical savedefconfig, so fragment injection must be
-      # followed by the self-heal stage (vendored from prior CloudFox work) as
-      # POST_DEFCONFIG_CMDS. Kleaf needs nothing extra (order-insensitive).
       - name: Prepare portable build config (build.sh era)
         if: matrix.build_kind == 'build_sh'
         run: |
@@ -394,11 +271,16 @@ jobs:
           # shellcheck disable=SC2086
           tools/bazel build $FLAG //common:kernel_aarch64_dist
 
+      - name: Verify SuSFS
+        if: needs.resolve.outputs.susfs != 'false'
+        run: |
+          cd kernel
+          bash "$GITHUB_WORKSPACE/builder/tools/verify-susfs.sh"
+
       - name: Collect outputs
         run: |
           cd kernel
           mkdir -p "$GITHUB_WORKSPACE/out-${{ steps.rev.outputs.rev }}"
-          # build.sh era drops into out/ ; Kleaf into bazel-bin/common/
           for f in $(find out bazel-bin/common -maxdepth 4 \( -name "Image*" -o -name "vmlinux" -o -name "System.map" \) 2>/dev/null | head -n 20); do
             cp -v "$f" "$GITHUB_WORKSPACE/out-${{ steps.rev.outputs.rev }}/" 2>/dev/null || true
           done
@@ -408,25 +290,25 @@ jobs:
         run: |
           OUT="$GITHUB_WORKSPACE/out-${{ steps.rev.outputs.rev }}"
           IMG=""
-          # Raw Image first, always: compressed variants (lz4/gz) panic
-          # at boot ("decompress kernel image fail" -- decompressor or
-          # magiskboot too old for them). Fallbacks only if raw is absent.
           for cand in Image Image.gz Image.lz4; do
             [ -f "$OUT/$cand" ] && IMG="$OUT/$cand" && break
           done
           [ -n "$IMG" ] || { echo "no kernel image for AK3 zip; skipping"; exit 0; }
-          # Resolved .config rides in the zip as kernel.config (best-effort:
-          # build.sh and Kleaf stash it at different depths; absent = skip).
           KCONFIG=""
           for kc in $(find out bazel-bin/common -maxdepth 6 -name ".config" 2>/dev/null | head -n 5); do
             [ -f "$kc" ] && KCONFIG="$kc" && break
           done
           [ -n "$KCONFIG" ] && echo "ak3 kconfig: $KCONFIG" || echo "ak3 kconfig: none found, skipping"
+          IKCONFIG=""
+          if [ -x common/scripts/extract-ikconfig ]; then
+            if common/scripts/extract-ikconfig "$IMG" > /tmp/ikconfig 2>/dev/null; then
+              IKCONFIG=/tmp/ikconfig
+              echo "ak3 ikconfig: extracted from image"
+            else
+              echo "ak3 ikconfig: extract failed, skipping"
+            fi
+          fi
           mkdir -p "$GITHUB_WORKSPACE/release"
-          # Zip name carries the kernel version: android12-5.10-stable +
-          # SUBLEVEL 269 -> anykernel-android12-5.10-269-stable.zip.
-          # Release notes + telegram both list zip filenames, so this one
-          # rename covers both surfaces.
           REV="${{ steps.rev.outputs.rev }}"
           SUBLEVEL=$(grep -E '^SUBLEVEL = ' kernel/common/Makefile | awk '{print $3}')
           ZIPREV="$REV"
@@ -435,18 +317,16 @@ jobs:
             ZIPREV="$BASE-$SUBLEVEL${REV#$BASE}"
           fi
           echo "zip revision: $ZIPREV"
-          INT=""; [ "${{ inputs.ksu }}" = "true" ] && INT="${INT}KernelSU-Next:";
-          [ "${{ steps.eff.outputs.eff_susfs }}" = "true" ] && INT="${INT}SuSFS:";
-          [ "${{ inputs.nomount }}" = "true" ] && INT="${INT}NoMount:";
-          [ "${{ inputs.guard }}" = "true" ] && INT="${INT}Partition Guard:";
+          INT=""; [ "${{ needs.resolve.outputs.ksu }}" = "true" ] && INT="${INT}KernelSU-Next:";
+          [ "${{ needs.resolve.outputs.susfs }}" = "true" ] && INT="${INT}SuSFS:";
+          [ "${{ needs.resolve.outputs.nomount }}" = "true" ] && INT="${INT}NoMount:";
+          [ "${{ needs.resolve.outputs.guard }}" = "true" ] && INT="${INT}Partition Guard:";
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | paste -sd: -)
           bash "$GITHUB_WORKSPACE/builder/tools/pack-anykernel.sh" \
             --image "$IMG" --rev "$ZIPREV" \
-            --features "${INT}${FRAGS}" --kconfig "$KCONFIG" \
+            --features "${INT}${FRAGS}" --kconfig "$KCONFIG" --ikconfig "$IKCONFIG" \
             --out "$GITHUB_WORKSPACE/release/anykernel-$ZIPREV.zip"
 
-      # Raw outputs (Image/vmlinux/System.map) stay here; the AK3 zip
-      # lives in release/ and rides its own artifact to the release job.
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -461,46 +341,36 @@ jobs:
           path: release/
           if-no-files-found: ignore
 
-      # Rename to a unique file first: merge-multiple flattens every
-      # artifact into one dir, so 8 identically-named .ksu-version files
-      # would overwrite each other down to one (and match no reader glob).
       - name: Stage KSU version
-        if: inputs.ksu != false
+        if: needs.resolve.outputs.ksu != 'false'
         run: |
           [ -f kernel/.ksu-version ] \
             && cp kernel/.ksu-version "ksu-version-${{ steps.rev.outputs.rev }}.txt" \
             || echo "no ksu version file; upload will skip"
       - name: Upload KSU version
-        if: inputs.ksu != false
+        if: needs.resolve.outputs.ksu != 'false'
         uses: actions/upload-artifact@v4
         with:
           name: ksu-version-${{ steps.rev.outputs.rev }}
           path: ksu-version-${{ steps.rev.outputs.rev }}.txt
           if-no-files-found: ignore
 
-      # Absent on trees where SuSFS gated out (suppression) or KSU lacks
-      # hooks (plain ref): presence of this file MEANS SuSFS built.
-      # Same unique-name staging (see KSU above); gated trees simply have
-      # no .susfs-version, so the upload skips and absence still means off.
       - name: Stage SuSFS version
-        if: steps.eff.outputs.eff_susfs != 'false'
+        if: needs.resolve.outputs.susfs != 'false'
         run: |
           [ -f kernel/.susfs-version ] \
             && cp kernel/.susfs-version "susfs-version-${{ steps.rev.outputs.rev }}.txt" \
             || echo "susfs gated or skipped here; upload will skip"
       - name: Upload SuSFS version
-        if: steps.eff.outputs.eff_susfs != 'false'
+        if: needs.resolve.outputs.susfs != 'false'
         uses: actions/upload-artifact@v4
         with:
           name: susfs-version-${{ steps.rev.outputs.rev }}
           path: susfs-version-${{ steps.rev.outputs.rev }}.txt
           if-no-files-found: ignore
 
-  # One release per run: gathers every AnyKernel3 zip (partial success
-  # still publishes what built). Raw Image/vmlinux/System.map stay as
-  # run artifacts only. Re-runs reuse the same tag (upload --clobber).
   release:
-    needs: build
+    needs: [resolve, build]
     if: ${{ !cancelled() && inputs.release }}
     runs-on: ubuntu-latest
     steps:
@@ -516,8 +386,6 @@ jobs:
           pattern: ksu-version-*
           path: ksuversions
           merge-multiple: true
-        # Zero match (ksu=false, total build failure) must not fail the job;
-        # the Publish step degrades to ref-based text in that case.
         continue-on-error: true
       - name: Fetch SuSFS versions
         uses: actions/download-artifact@v4
@@ -525,26 +393,12 @@ jobs:
           pattern: susfs-version-*
           path: susfsversions
           merge-multiple: true
-        # Absent for gated trees by design (see Upload step); missing files
-        # mean that branch built WITHOUT SuSFS, not that the build failed.
         continue-on-error: true
-      - name: Checkout builder (template + HEAD subject)
+      - name: Checkout builder
         uses: actions/checkout@v4
         with:
           path: builder
           fetch-depth: 1
-      # Release only runs on manual dispatch (schedule keeps release=false),
-      # but recompute the SuSFS flag anyway so display logic has one source.
-      - name: Resolve effective inputs
-        id: eff
-        run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            H=$(date -u +%H)
-            if [ "$H" -lt 12 ]; then EFF_SUSFS=true; else EFF_SUSFS=false; fi
-          else
-            EFF_SUSFS="${{ inputs.susfs }}"
-          fi
-          echo "eff_susfs=$EFF_SUSFS" >>"$GITHUB_OUTPUT"
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -554,17 +408,10 @@ jobs:
           [ "${#files[@]}" -gt 0 ] || { echo "no AnyKernel3 zips; skipping release"; exit 0; }
           TAG="kernel-build-r${{ github.run_number }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          # Manager APK URL resolved after the KSU loop below (pinned run
-          # link when an upstream manager build matches our primary KSU SHA,
-          # else the dev-tip nightly; pershoot dev == official dev, so
-          # dev-ref trees match exactly, dev-susfs ones carry extra commits).
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | tr '\n' ' ')
-          # Resolved KSU versions (one "TAG SHA REF VCODE" file per built branch).
-          # Uniform -> single value; mixed -> common plus branch outliers;
-          # absent -> the requested ref, still true-led. powers the table + telegram.
           KSU_DISPLAY="false"
-          if [ "${{ inputs.ksu }}" != "false" ]; then
-            KSU_DISPLAY="true (ref: ${{ inputs.ksu_ref || 'latest tag' }})"
+          if [ "${{ needs.resolve.outputs.ksu }}" != "false" ]; then
+            KSU_DISPLAY="true (ref: per-branch, see variants/${{ inputs.variant }}.json)"
             KSU_FIRST=""; KSU_OUT=""
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue
@@ -576,13 +423,9 @@ jobs:
             done
             [ -n "$KSU_FIRST" ] && KSU_DISPLAY="true: $KSU_OUT"
           fi
-          # Version-pinned manager link: most-common KSU SHA across built
-          # branches -> newest successful upstream manager build on that SHA
-          # (run-scoped nightly.link is immutable). pershoot-only SHAs have
-          # no upstream run -> dev-tip fallback. Fail-open throughout.
           MANAGER_URL="https://nightly.link/KernelSU-Next/KernelSU-Next/workflows/build-manager-ci/dev/manager.zip"
           MANAGER_PIN="dev tip"
-          if [ "${{ inputs.ksu }}" != "false" ]; then
+          if [ "${{ needs.resolve.outputs.ksu }}" != "false" ]; then
             WID=$(gh api repos/KernelSU-Next/KernelSU-Next/actions/workflows --jq '.workflows[] | select(.path==".github/workflows/build-manager-ci.yml") | .id' 2>/dev/null || true)
             if [ -n "$WID" ]; then
               for PSHA in $(for vf in ksuversions/ksu-version-*.txt; do [ -f "$vf" ] && awk '{print $2}' "$vf"; done | sort | uniq -c | sort -rn | awk '{print $2}'); do
@@ -595,12 +438,8 @@ jobs:
               done
             fi
           fi
-          # Resolved SuSFS versions (one "GKI_VER SHA REF" file per branch
-          # that BUILT WITH SuSFS). Branches that built without it (gated
-          # trees, plain KSU ref) are enumerated from the KSU files, which
-          # exist for every ksu-enabled build. Absent files = false, not failed.
           SUSFS_DISPLAY="false"; SUSFS_TG="false"
-          if [ "${{ steps.eff.outputs.eff_susfs }}" != "false" ]; then
+          if [ "${{ needs.resolve.outputs.susfs }}" != "false" ]; then
             SUSFS_ON=""; SUSFS_OFF=""; SUSFS_N=0
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue
@@ -631,13 +470,13 @@ jobs:
             echo "### ⚙️ Build config"
             echo "| Option | Value |"
             echo "|---|---|"
-            echo "| Branches | \`${{ inputs.branch || 'all' }}\` |"
+            echo "| Branches | \`${{ needs.resolve.outputs.branch }}\` |"
+            echo "| Variant | \`variants/${{ inputs.variant }}.json\` |"
             echo "| KernelSU-Next | \`$KSU_DISPLAY\` |"
             echo "| SuSFS (experimental) | \`$SUSFS_DISPLAY\` |"
-            echo "| NoMount | \`${{ inputs.nomount }}\` |"
-            echo "| Partition Guard | \`${{ inputs.guard }}\` |"
-            echo "| Extra fragments | \`${{ inputs.fragments }}\` |"
-            echo "| Extra config | \`${{ inputs.extra_config }}\` |"
+            echo "| NoMount | \`${{ needs.resolve.outputs.nomount }}\` |"
+            echo "| Partition Guard | \`${{ needs.resolve.outputs.guard }}\` |"
+            echo "| Extra fragments | \`${{ needs.resolve.outputs.fragments }}\` |"
             echo "| Active fragments | $FRAGS |"
             echo ""
             echo "### 📲 Flash"
@@ -648,25 +487,21 @@ jobs:
             echo "### 🔗 Links"
             echo "- Build logs: $RUN_URL"
             echo "- Risk register: [RISK.md](https://github.com/${{ github.repository }}/blob/main/RISK.md)"
-            if [ "${{ inputs.ksu }}" = "true" ]; then echo "- Manager APK ($MANAGER_PIN, version-match with the KSU row above): $MANAGER_URL"; fi
+            if [ "${{ needs.resolve.outputs.ksu }}" = "true" ]; then echo "- Manager APK ($MANAGER_PIN, version-match with the KSU row above): $MANAGER_URL"; fi
           } > release-notes.md
-          # Release footnotes (docs/RELEASE_NOTES_EXTRA.txt): appended as
-          # ### Notes so free text never looks bolted-on.
           EXTRA="$GITHUB_WORKSPACE/builder/docs/RELEASE_NOTES_EXTRA.txt"
           if [ -s "$EXTRA" ] && grep -qv '^[[:space:]]*#' "$EXTRA"; then
             { echo ""; echo "### 📌 Notes"; echo ""; grep -v '^[[:space:]]*#' "$EXTRA"; } >> release-notes.md
           fi
-          # Telegram post: fill docs/TELEGRAM_RELEASE.md from this build.
-          # Release-only (this step), uploaded as an asset + printed for copy-paste.
           HL=$(git -C "$GITHUB_WORKSPACE/builder" log -1 --format=%s 2>/dev/null || echo "New build")
           HLESC=$(printf '%s' "$HL" | python3 -c 'import html,sys; print(html.escape(sys.stdin.read()), end="")' | sed 's/[&|\\/]/\\&/g')
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
           {
-            [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next: $KSU_DISPLAY"
-            [ "${{ inputs.ksu }}" = "true" ] && echo "• Manager APK ($MANAGER_PIN): $MANAGER_URL"
-            [ "${{ steps.eff.outputs.eff_susfs }}" = "true" ] && echo "• SuSFS: $SUSFS_TG"
-            [ "${{ inputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
-            [ "${{ inputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
+            [ "${{ needs.resolve.outputs.ksu }}" = "true" ] && echo "• KernelSU-Next: $KSU_DISPLAY"
+            [ "${{ needs.resolve.outputs.ksu }}" = "true" ] && echo "• Manager APK ($MANAGER_PIN): $MANAGER_URL"
+            [ "${{ needs.resolve.outputs.susfs }}" = "true" ] && echo "• SuSFS: $SUSFS_TG"
+            [ "${{ needs.resolve.outputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
+            [ "${{ needs.resolve.outputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
             echo "• Fragments: $FRAGS"
           } > /tmp/tg_features.txt
           sed -e "s|{KERNEL NAME}|GKI Kernel|" \
@@ -679,8 +514,6 @@ jobs:
               -e "/{one file per line}/r /tmp/tg_files.txt" -e "/{one file per line}/d" \
               -e "/• {feature 1}/r /tmp/tg_features.txt" -e "/• {feature 1}/d" -e "/• {feature 2}/d" \
               "$GITHUB_WORKSPACE/builder/docs/TELEGRAM_RELEASE.md" > telegram-post.txt
-          # Same footnotes into the Telegram post (HTML-escaped, slotted
-          # before Download so the shape matches the template).
           if [ -s "$EXTRA" ]; then
             python3 "$GITHUB_WORKSPACE/builder/tools/telegram-notes.py" "$EXTRA" telegram-post.txt
           fi
@@ -692,7 +525,6 @@ jobs:
               --title "$TAG" --notes-file release-notes.md --repo "${{ github.repository }}"
           fi
       - name: Notify Telegram channel
-        if: inputs.telegram
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -707,11 +539,6 @@ jobs:
             --data-urlencode "parse_mode=HTML" \
             --data-urlencode "text=$(cat telegram-post.txt)") \
             && echo "telegram posted" || { echo "telegram post FAILED"; exit 1; }
-          # Optional forwards (TELEGRAM_FORWARD_CHAT_ID): comma-separated
-          # "chat[:topic]" list; keeps the channel attribution header.
-          # TG_TOPIC is the legacy single-target topic (applies when the
-          # entry carries no inline :topic). Bot must be a member of each
-          # target (admin only if the topic restricts posting to admins).
           MID=$(printf '%s' "$RESP" | grep -o '"message_id":[0-9]*' | head -1 | cut -d: -f2)
           if [ "${FWD_ON:-false}" = "true" ] && [ -n "${TG_FWD:-}" ] && [ -n "$MID" ]; then
             FWD_FAIL=""
@@ -719,8 +546,6 @@ jobs:
             OLDIFS=$IFS; IFS=,
             for spec in $TG_FWD; do
               chat="${spec%%:*}"; topic="${spec#*:}"
-              # Legacy single-target form (bare id + TG_TOPIC secret) only
-              # applies with exactly one entry; otherwise topic-less = General.
               if [ "$topic" = "$spec" ]; then
                 if [ "$NSPEC" = "1" ]; then topic="${TG_TOPIC:-}"; else topic=""; fi
               fi
