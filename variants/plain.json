@@ -10,7 +10,7 @@
   },
   "branches": [
     {
-      "branch": "android12-5.10-stable",
+      "branch": "android12-5.10-lts",
       "fallback": "android12-5.10-lts",
       "manifest": "common-android12-5.10-lts",
       "kind": "build_sh",
@@ -20,7 +20,7 @@
       "guard_ref": ""
     },
     {
-      "branch": "android13-5.10-stable",
+      "branch": "android13-5.10-lts",
       "fallback": "android13-5.10-lts",
       "manifest": "common-android13-5.10-lts",
       "kind": "build_sh",
@@ -30,7 +30,7 @@
       "guard_ref": ""
     },
     {
-      "branch": "android13-5.15-stable",
+      "branch": "android13-5.15-lts",
       "fallback": "android13-5.15-lts",
       "manifest": "common-android13-5.15-lts",
       "kind": "build_sh",
@@ -40,7 +40,7 @@
       "guard_ref": ""
     },
     {
-      "branch": "android14-5.15-stable",
+      "branch": "android14-5.15-lts",
       "fallback": "android14-5.15-lts",
       "manifest": "common-android14-5.15-lts",
       "kind": "kleaf",
@@ -50,7 +50,7 @@
       "guard_ref": ""
     },
     {
-      "branch": "android14-6.1-stable",
+      "branch": "android14-6.1-lts",
       "fallback": "android14-6.1-lts",
       "manifest": "common-android14-6.1-lts",
       "kind": "kleaf",
@@ -60,7 +60,7 @@
       "guard_ref": ""
     },
     {
-      "branch": "android15-6.6-stable",
+      "branch": "android15-6.6-lts",
       "fallback": "android15-6.6-lts",
       "manifest": "common-android15-6.6-lts",
       "kind": "kleaf",
@@ -70,7 +70,7 @@
       "guard_ref": ""
     },
     {
-      "branch": "android16-6.12-stable",
+      "branch": "android16-6.12-lts",
       "fallback": "android16-6.12-lts",
       "manifest": "common-android16-6.12-lts",
       "kind": "kleaf",
@@ -80,7 +80,7 @@
       "guard_ref": ""
     },
     {
-      "branch": "android17-6.18-stable",
+      "branch": "android17-6.18-lts",
       "fallback": "android17-6.18-lts",
       "manifest": "common-android17-6.18-lts",
       "kind": "kleaf",
