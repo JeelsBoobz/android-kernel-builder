@@ -81,13 +81,20 @@ echo "setup-kernelsu-next: driver linked, fragment written"
 # layout); anything else fails closed. Attribution:
 # WildKernels/GKI_KernelSU_SUSFS .github/actions/kernelsu/patches/static.patch.
 SEHIDE="$NAME/kernel/feature/selinux_hide.c"
-if grep -q "^static int security_context_to_sid_with_policy" "$SEHIDE" 2>/dev/null; then
+# Fire only on the dev-susfs layout: static forward-decls over GLOBAL
+# definitions (SuSFS's kernel patch calls these from selinuxfs.c, which
+# needs external linkage). Plain-dev layout is static decls over static
+# defs (self-consistent) and must be left alone: flipping only the decls
+# breaks it (`static follows non-static`; the __nocfi def slips the naive
+# post-check too). So require a global def as proof before touching.
+if grep -q "^static int security_context_to_sid_with_policy" "$SEHIDE" 2>/dev/null && \
+   grep -q "^int security_context_to_sid_with_policy" "$SEHIDE" 2>/dev/null; then
   sed -i \
     -e 's/^static int security_context_to_sid_with_policy/int security_context_to_sid_with_policy/' \
     -e 's/^static int security_sid_to_context_with_policy/int security_sid_to_context_with_policy/' \
     -e 's/^static void security_compute_av_user_with_policy/void security_compute_av_user_with_policy/' \
     "$SEHIDE"
-  grep -q "^static \(int\|void\) security_\(context_to_sid\|sid_to_context\|compute_av_user\)_with_policy" "$SEHIDE" && \
+  grep -qE "^static\b.*\bsecurity_(context_to_sid|sid_to_context|compute_av_user)_with_policy\b" "$SEHIDE" && \
     { echo "setup-kernelsu-next: selinux_hide linkage patch incomplete" >&2; exit 2; }
   grep -q "^int security_context_to_sid_with_policy" "$SEHIDE" || \
     { echo "setup-kernelsu-next: selinux_hide linkage patch missing" >&2; exit 2; }
