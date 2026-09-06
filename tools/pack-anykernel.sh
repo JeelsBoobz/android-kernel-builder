@@ -61,7 +61,7 @@ grep -q "@REV@\|@FEATURE_LINES@\|@DATE@" "$stage/anykernel.sh" && { echo "pack-a
 cp -a "$IMAGE" "$stage/"
 cat > "$stage/version" <<EOF
 $REV
-Built $(date -u +%Y-%m-%dT%H:%MZ)
+Built $(date -u +"%Y-%m-%d %H:%M UTC")
 EOF
 
 mkdir -p "$(dirname "$OUT")"

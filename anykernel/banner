@@ -1,4 +1,6 @@
-=====================================
- sysretq0 GKI kernel installer
- generic build - no device check
-=====================================
+  //=====================================\\
+  ||                                     ||
+  ||    sysretq0 GKI kernel installer    ||
+  ||    generic build - no device check  ||
+  ||                                     ||
+  \\=====================================//
