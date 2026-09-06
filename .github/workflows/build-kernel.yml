@@ -547,6 +547,10 @@ jobs:
           [ "${#files[@]}" -gt 0 ] || { echo "no AnyKernel3 zips; skipping release"; exit 0; }
           TAG="kernel-build-r${{ github.run_number }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # Manager APK: official org's dev-tip nightly (Build Manager CI).
+          # pershoot dev == official dev (same SHA), so dev-ref trees match
+          # exactly; dev-susfs trees carry extra commits (see KSU row).
+          MANAGER_URL="https://nightly.link/KernelSU-Next/KernelSU-Next/workflows/build-manager-ci/dev/manager.zip"
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | tr '\n' ' ')
           # Resolved KSU versions (one "TAG SHA REF" file per built branch).
           # Uniform -> single value; mixed -> common plus branch outliers;
@@ -618,6 +622,7 @@ jobs:
             echo "### 🔗 Links"
             echo "- Build logs: $RUN_URL"
             echo "- Risk register: [RISK.md](https://github.com/${{ github.repository }}/blob/main/RISK.md)"
+            if [ "${{ inputs.ksu }}" = "true" ]; then echo "- Manager APK (official dev nightly, version-match with the KSU row above): $MANAGER_URL"; fi
           } > release-notes.md
           # Release footnotes (docs/RELEASE_NOTES_EXTRA.txt): appended as
           # ### Notes so free text never looks bolted-on.
@@ -632,6 +637,7 @@ jobs:
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
           {
             [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next: $KSU_DISPLAY"
+            [ "${{ inputs.ksu }}" = "true" ] && echo "• Manager APK: $MANAGER_URL"
             [ "${{ steps.eff.outputs.eff_susfs }}" = "true" ] && echo "• SuSFS: $SUSFS_TG"
             [ "${{ inputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
             [ "${{ inputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
