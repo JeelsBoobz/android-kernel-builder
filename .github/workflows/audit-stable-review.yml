@@ -1,0 +1,170 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: audit-stable-review
+
+# Deterministic audit of -stable-review merge commits. No AI: static gates only.
+# - REVIEW missing            -> NO-REVIEW (nothing to audit)
+# - OUT already contains both -> NO-OP (already promoted / clean skip)
+# - REVIEW == LTS tip         -> HOLD-shell (too-many-conflicts quarantine, no stable content)
+# - else verify: 2 parents == current LTS+stable tips, no trunc/conflict markers,
+#   per-file line ratio floor, android/abi_* untouched. All pass -> PROMOTE.
+# Promotion only when inputs.promote=true AND verdict==PROMOTE, via force-with-lease.
+
+on:
+  workflow_dispatch:
+    inputs:
+      promote:
+        description: "Push PROMOTE verdicts to -stable refs (default dry-run)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: audit-stable-review
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lts: android12-5.10-lts
+            stable: linux-5.10.y
+          - lts: android13-5.10-lts
+            stable: linux-5.10.y
+          - lts: android13-5.15-lts
+            stable: linux-5.15.y
+          - lts: android14-5.15-lts
+            stable: linux-5.15.y
+          - lts: android14-6.1-lts
+            stable: linux-6.1.y
+          - lts: android15-6.6-lts
+            stable: linux-6.6.y
+          - lts: android16-6.12-lts
+            stable: linux-6.12.y
+          - lts: android17-6.18-lts
+            stable: linux-6.18.y
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UPSTREAM_URL: https://android.googlesource.com/kernel/common
+      STABLE_URL: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+      DEST_REPO: sysretq0/android-kernel-common
+      LTS: ${{ matrix.lts }}
+      STABLE: ${{ matrix.stable }}
+      PROMOTE: ${{ inputs.promote }}
+    steps:
+      - name: Audit review commit, optionally promote
+        env:
+          DEST_TOKEN: ${{ secrets.KERNEL_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          OUT="${LTS/-lts/-stable}"
+          REVIEW="${OUT}-review"
+          DEST="https://x-access-token:${DEST_TOKEN}@github.com/${DEST_REPO}.git"
+          VERDICT=""; REASONS=""
+
+          LTS_TIP=$(git ls-remote "$UPSTREAM_URL" "refs/heads/$LTS" | cut -f1)
+          STABLE_TIP=$(git ls-remote "$STABLE_URL" "refs/heads/$STABLE" | cut -f1 || true)
+          OLD=$(git ls-remote "$DEST" "refs/heads/$OUT" | cut -f1 || true)
+          REV=$(git ls-remote "$DEST" "refs/heads/$REVIEW" | cut -f1 || true)
+
+          hold() { VERDICT="HOLD"; REASONS="${REASONS}$1"$'\n'; }
+
+          if [ -z "${STABLE_TIP:-}" ]; then
+            echo "RESULT=$OUT NO-REVIEW ($STABLE missing upstream, nothing to audit)"
+            echo "## $OUT: NO-REVIEW" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -z "${REV:-}" ]; then
+            echo "RESULT=$OUT NO-REVIEW (no $REVIEW ref)"
+            echo "## $OUT: NO-REVIEW — no review ref" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          rm -rf work && mkdir work && cd work
+          git init -q
+          git remote add dest "$DEST"
+          # Shallow: only the tips we compare. No history clone.
+          git fetch --no-tags --depth 1 dest "refs/heads/$LTS" || true
+          git fetch --no-tags dest "$REV" || true
+          git fetch --no-tags --depth 1 "$STABLE_URL" "refs/heads/$STABLE:refs/remotes/stable/$STABLE" || true
+
+          # NO-OP: OUT already contains both inputs.
+          if [ -n "${OLD:-}" ] \
+            && git merge-base --is-ancestor "$LTS_TIP" "$OLD" 2>/dev/null \
+            && git merge-base --is-ancestor "$STABLE_TIP" "$OLD" 2>/dev/null; then
+            echo "RESULT=$OUT NO-OP ($OLD already contains LTS+stable)"
+            echo "## $OUT: NO-OP — $OLD current" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Shell: quarantine commit with no stable content (too-many-conflicts path).
+          if [ "$REV" = "$LTS_TIP" ]; then
+            echo "RESULT=$OUT HOLD-shell (review == LTS tip, carries no stable content)"
+            echo "## $OUT: HOLD-shell — review == LTS tip, nothing to promote" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Parent check: genuine 2-parent merge of current tips.
+          mapfile -t PARENTS < <(git cat-file -p "$REV" | awk '/^parent/ {print $2}')
+          if [ "${#PARENTS[@]}" -ne 2 ]; then
+            hold "not a 2-parent merge (${#PARENTS[@]} parents)"
+          else
+            [ "${PARENTS[0]}" = "$LTS_TIP" ] || hold "parent1 ${PARENTS[0]:0:12} != LTS $LTS_TIP (stale, re-run merge)"
+            [ "${PARENTS[1]}" = "$STABLE_TIP" ] || hold "parent2 ${PARENTS[1]:0:12} != stable $STABLE_TIP (stale, re-run merge)"
+          fi
+
+          # Conflicted files from the merge message.
+          mapfile -t CFILES < <(git show -s --format=%B "$REV" | awk '/^#\t/ {print substr($0, 3)}')
+          echo "conflicted: ${CFILES[*]:-<none>}"
+
+          # Marker gate: our own trunc marker or git conflict markers in resolved files.
+          for f in "${CFILES[@]}"; do
+            [ -n "$f" ] || continue
+            content=$(git cat-file -p "$REV:$f" 2>/dev/null || true)
+            if grep -qF '...[truncated]...' <<<"$content"; then hold "$f: contains ...[truncated]... stub marker"; fi
+            if grep -qE '^(<{7}|={7}|>{7})' <<<"$content"; then hold "$f: contains git conflict markers"; fi
+            if [ -z "$content" ]; then hold "$f: missing in review commit"; fi
+          done
+
+          # Size gate: review file must keep >=70% of max(LTS,stable) lines.
+          # Catches truncated AI stubs (observed: 420/7254 binder, 326/2054 dj).
+          for f in "${CFILES[@]}"; do
+            [ -n "$f" ] || continue
+            L=$(git cat-file -p "${PARENTS[0]:-$LTS_TIP}:$f" 2>/dev/null | wc -l || true)
+            S=$(git cat-file -p "refs/remotes/stable/$STABLE:$f" 2>/dev/null | wc -l || true)
+            R=$(git cat-file -p "$REV:$f" 2>/dev/null | wc -l || true)
+            M=$(( L > S ? L : S ))
+            if [ "$M" -gt 0 ] && [ "$(( R * 10 ))" -lt "$(( M * 7 ))" ]; then
+              hold "$f: size collapse $R vs LTS $L / stable $S (<70%)"
+            fi
+          done
+
+          # ABI tripwire: stable never touches android/abi_*; any delta = damage.
+          if git diff --name-only "${PARENTS[0]:-$LTS_TIP}" "$REV" | grep -q "^android/abi_"; then
+            hold "android/abi_* changed in review diff"
+          fi
+          # Android-surface rule: AI-resolved binder stays human-only.
+          for f in "${CFILES[@]}"; do
+            case "$f" in drivers/android/*) hold "$f: Android-surface file needs human review";; esac
+          done
+
+          if [ -z "$VERDICT" ]; then VERDICT="PROMOTE"; fi
+          {
+            echo "## $OUT: $VERDICT"
+            echo "review $REV (LTS ${LTS_TIP:0:12} + stable ${STABLE_TIP:0:12})"
+            [ -n "$REASONS" ] && echo "$REASONS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "RESULT=$OUT $VERDICT"
+          [ -n "$REASONS" ] && echo "$REASONS"
+
+          if [ "$VERDICT" = "PROMOTE" ] && [ "$PROMOTE" = "true" ]; then
+            if [ -z "${DEST_TOKEN:-}" ]; then echo "::error::promote needs KERNEL_MIRROR_TOKEN"; exit 1; fi
+            if [ -n "${OLD:-}" ]; then lease="--force-with-lease=refs/heads/$OUT:$OLD";
+            else lease="--force-with-lease=refs/heads/$OUT:"; fi
+            # shellcheck disable=SC2086
+            git push --verbose $lease dest "$REV:refs/heads/$OUT"
+          fi
+          echo done
