@@ -50,7 +50,7 @@ index a192035..0f5da00 100644
  #define	TCP_ECN_DEMAND_CWR	4
  #define	TCP_ECN_SEEN		8
 +#define	TCP_ECN_LOW				16
-+#define	TCP_ECN_ECT_PERMANENT	3
++#define	TCP_ECN_ECT_PERMANENT	32
  
  enum tcp_tw_status {
  	TCP_TW_SUCCESS = 0,

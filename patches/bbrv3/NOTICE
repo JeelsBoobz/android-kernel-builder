@@ -19,3 +19,9 @@ Refresh procedure: re-fetch, diff against these copies, review the delta
 for scope creep (new files outside net/ipv4, Kconfig default flips,
 BBRv1 changes), then commit. setup-bbrv3.sh pins to these copies; upstream
 movement never reaches builds unreviewed.
+
+LOCAL FIXES (re-apply after any refresh, do not "restore" to upstream):
+- android15-6.6 0001: TCP_ECN_ECT_PERMANENT 3 -> 32. Upstream typo:
+  ecn_flags layout is OK=1 QUEUE_CWR=2 DEMAND_CWR=4 SEEN=8 LOW=16,
+  so 3 aliases live flags (|= sets OK+QUEUE_CWR spuriously, & test is
+  near-always true); all four sibling backports use 32.
