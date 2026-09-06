@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
 set -euo pipefail
 
 # free-disk-space.sh - fast disk-space cleanup for GitHub Actions runners.
 #
-# Vendored from CloudFox-INC/CloudFox-Kernel-Builder (build/free-disk-space.sh).
+# Vendored from the author's prior identity CloudFox-INC/CloudFox-Kernel-Builder (build/free-disk-space.sh).
 #
 # In-repo replacement for the third-party endersonmenezes/free-disk-space@v3
 # action. It frees the same space in a fraction of the time:

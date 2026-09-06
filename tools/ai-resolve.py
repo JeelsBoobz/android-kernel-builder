@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Per-file AI conflict resolver via OpenRouter. Harness, not just a model call.
 
 Usage (called from CI once per conflicted file):

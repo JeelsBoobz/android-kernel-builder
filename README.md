@@ -95,7 +95,8 @@ Secrets: `KERNEL_MIRROR_TOKEN` (push to the mirror), `OPENROUTER_API_KEY`
   reference for the KSU + SuSFS + NoMount integration shape (patch flow,
   baked-version approach, SuSFS branch pairing).
 - [CloudFox-INC/CloudFox-Kernel-Builder](https://github.com/CloudFox-INC/CloudFox-Kernel-Builder) —
-  origin of `self-heal-config.sh` (ported here for all trees, not just legacy `build.sh`).
+  the author's prior identity; origin of `self-heal-config.sh`
+  (ported here for all trees, not just legacy `build.sh`).
 - [showdo/Baseband Guard](https://github.com/vc-teahouse/Baseband-Guard) —
   main inspiration for Partition Guard (hook points, installer shape).
 - `pershoot/KernelSU-Next`, `maxsteeel/nomount` — upstream projects,
@@ -108,8 +109,12 @@ Secrets: `KERNEL_MIRROR_TOKEN` (push to the mirror), `OPENROUTER_API_KEY`
 Every deviation from stock GKI is graded in [RISK.md](RISK.md)
 (kept current: grades change when builds prove otherwise).
 
-Mozilla Public License 2.0 — see [LICENSE](LICENSE).
+GPL-3.0-only — see [LICENSE](LICENSE).
 
-Kernel-side code (the `android-partition-guard` repo) stays GPL-2.0: it
+Kernel-side code (the `android-partition-guard` repo) stays GPL-2.0-only: it
 links into the kernel and can't be otherwise. Everything in *this* repo
-(scripts, workflows, fragments, AK3 template) is MPL-2.0.
+written by the author (scripts, workflows, fragments, AK3 template) is GPL-3.0-only.
+
+Carve-outs (not ours, licenses unchanged): AnyKernel3 backend
+(`anykernel/tools/`, `anykernel/META-INF/`, BSD — see
+`anykernel/LICENSE.upstream`) and the `magiskboot` binary (upstream Magisk).

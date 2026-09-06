@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
 # stage-kleaf-fragments.sh - stage fragments for Kleaf's --defconfig_fragment.
 #
 # Unlike build.sh (bake into gki_defconfig + self-heal), Kleaf checks the

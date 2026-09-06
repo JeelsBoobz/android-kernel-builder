@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 name: mirror-android-common-lts
 
 # Full-history mirror of android.googlesource.com/kernel/common LTS branches

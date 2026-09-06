@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 name: merge-stable
 
 # LTS + Greg KH stable merges -> -stable branches (rebuilt, no own history).

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
 # pack-anykernel.sh - stage an AnyKernel3 flashable zip from a built kernel.
 #
 # Usage:

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
 # setup-kernelsu-next.sh - integrate the pershoot/KernelSU-Next driver.
 #
 # Run with cwd = repo-sync root (the dir containing common/):
