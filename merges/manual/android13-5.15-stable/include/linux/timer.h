@@ -219,7 +219,6 @@ int timers_dead_cpu(unsigned int cpu);
 #define timers_dead_cpu		NULL
 #endif
 
-#endif
 
 /*
  * ANDROID: stable-merge compat shims (promote-stable fixup).
@@ -249,3 +248,4 @@ static inline int timer_shutdown(struct timer_list *timer)
 {
 	return del_timer(timer);
 }
+#endif

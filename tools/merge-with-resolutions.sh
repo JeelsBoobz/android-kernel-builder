@@ -208,10 +208,6 @@ while IFS= read -r line; do
     FIXUP_APPLIED="${FIXUP_APPLIED} $f"
     log "fixup $f applied"
   done < "$RESOL"
-if [ -z "${CONFLICT_MODE:-}" ] && [ -n "$FIXUP_APPLIED" ]; then
-  git "${GITID[@]}" commit --amend --no-edit
-  log "fixups amended into clean merge"
-fi
   # Gates (deterministic subset of audit-stable-review; the human IS the
   # reviewer here, so no AI confirm and no Android-surface rule — that rule
   # exists to keep AI away from binder, and this path is human-resolved).
@@ -239,11 +235,17 @@ fi
   if git diff --cached --name-only | grep -q "^android/abi_"; then
     log "FAIL: android/abi_* changed"; exit 1
   fi
+# Commit AFTER gates so --cached gates always see staged content on both
+# paths (previously the clean-path amend consumed the index first, silently
+# no-op'ing the whitespace/ABI gates for fixups).
 if [ -n "${CONFLICT_MODE:-}" ]; then
   git "${GITID[@]}" commit --no-edit
   # Provenance trailer (keeps the auto Conflicts: list audit parses).
   git "${GITID[@]}" commit --amend --no-edit -m "$(git log -1 --format=%B)" -m "Resolutions-from: $RESOL"
   log "resolved commit: $(git rev-parse HEAD)"
+elif [ -n "$FIXUP_APPLIED" ]; then
+  git "${GITID[@]}" commit --amend --no-edit
+  log "fixups amended into clean merge: $(git rev-parse HEAD)"
 fi
 if [ -n "${SYMBOLS_TOOL:-}" ]; then
   if [ ! -x "$SYMBOLS_TOOL" ]; then log "FAIL: check-symbols tool not executable: $SYMBOLS_TOOL"; exit 2; fi
