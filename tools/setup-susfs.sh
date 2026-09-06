@@ -74,22 +74,87 @@ fi
 SUSFS_SHA=$(git -C "$NAME" rev-parse --short HEAD)
 echo "setup-susfs: source at $SUSFS_SHA ($GKI_VER)"
 
-# Idempotent: file copies + git apply are re-runnable; skip the patch when
+# Idempotent: file copies + patch are re-runnable; skip the patch when
 # its content is already in the tree (fresh runners never hit this).
 cp -v "$NAME/kernel_patches/fs/susfs.c" common/fs/susfs.c
 cp -v "$NAME/kernel_patches/include/linux/susfs.h" common/include/linux/susfs.h
 cp -v "$NAME/kernel_patches/include/linux/susfs_def.h" common/include/linux/susfs_def.h
 PATCH="$NAME/kernel_patches/50_add_susfs_in_${GKI_VER}.patch"
 [ -f "$PATCH" ] || { echo "setup-susfs: missing $PATCH" >&2; exit 2; }
-if git -C common apply --check -p1 "../$PATCH" 2>/dev/null; then
-  git -C common apply -p1 "../$PATCH"
-  echo "setup-susfs: applied 50_add_susfs_in_${GKI_VER}.patch"
-elif [ -f common/fs/susfs.c ] && grep -q "susfs" common/fs/Makefile; then
+if grep -q "susfs_is_current_ksu_domain" common/fs/namespace.c 2>/dev/null; then
   echo "setup-susfs: patch already applied, skipping"
 else
-  echo "setup-susfs: patch does not apply cleanly and tree looks unpatched" >&2
-  git -C common apply --check -p1 "../$PATCH" || true
-  exit 2
+  # Drift fakes, method: WildKernels susfs-patches action (sublevel-gated
+  # sed pre-edits so the 50_ context matches, then GNU patch which tolerates
+  # residual offsets via fuzz). simonpunk's patch base trails/lead our -lts
+  # tips (e.g. 6.1/5.15 still carry trace/hooks/blk.h which the patch context
+  # lacks), so without these the hunk fails exactly as seen (namespace.c:32).
+  SUBLEVEL=$(grep -E "^SUBLEVEL" common/Makefile | awk '{print $3}')
+  echo "setup-susfs: sublevel $SUBLEVEL, applying drift fakes for $GKI_VER"
+  (
+  cd common
+  case "$GKI_VER" in
+    gki-android12-5.10)
+      [ "$SUBLEVEL" -le 43 ] && perl -i -pe 's/(int|size_t)\s+this_len\s*=\s*min_t\s*\(\s*\1\s*,/size_t this_len = min_t(size_t,/' fs/proc/base.c || true
+      if [ "$SUBLEVEL" -le 117 ]; then
+        perl -0777 -i -pe 's{(if \(inode\) \{\n)\t\t/\*\n(\t\t \*[^\n]*\n)+\t\t \*/\n}{$1}g; s{^[[:space:]]*u32 mask = mark->mask & IN_ALL_EVENTS;\n}{}m' fs/notify/fdinfo.c
+        perl -i -pe 's/\bmask,\s*mark->ignored_mask/inotify_mark_user_mask(mark)/g' fs/notify/fdinfo.c
+        perl -i -pe 's/ignored_mask:%x/ignored_mask:0/g' fs/notify/fdinfo.c
+        python3 -c 'import re;c=open("fs/notify/fdinfo.c").read();c=re.sub(r"^static void inotify_fdinfo\(struct seq_file \*m, struct fsnotify_mark \*mark\)$",lambda m:"static inline u32 inotify_mark_user_mask(struct fsnotify_mark *mark)\n{\n\treturn mark->mask & IN_ALL_EVENTS;\n}\n\n"+m.group(0),c,count=1,flags=re.MULTILINE);open("fs/notify/fdinfo.c","w").write(c)'
+      fi ;;
+    gki-android13-5.10)
+      if [ "$SUBLEVEL" -le 107 ]; then
+        perl -0777 -i -pe 's{(if \(inode\) \{\n)\t\t/\*\n(\t\t \*[^\n]*\n)+\t\t \*/\n}{$1}g; s{^[[:space:]]*u32 mask = mark->mask & IN_ALL_EVENTS;\n}{}m' fs/notify/fdinfo.c
+        perl -i -pe 's/\bmask,\s*mark->ignored_mask/inotify_mark_user_mask(mark)/g' fs/notify/fdinfo.c
+        perl -i -pe 's/ignored_mask:%x/ignored_mask:0/g' fs/notify/fdinfo.c
+        python3 -c 'import re;c=open("fs/notify/fdinfo.c").read();c=re.sub(r"^static void inotify_fdinfo\(struct seq_file \*m, struct fsnotify_mark \*mark\)$",lambda m:"static inline u32 inotify_mark_user_mask(struct fsnotify_mark *mark)\n{\n\treturn mark->mask & IN_ALL_EVENTS;\n}\n\n"+m.group(0),c,count=1,flags=re.MULTILINE);open("fs/notify/fdinfo.c","w").write(c)'
+      fi ;;
+    gki-android13-5.15|gki-android14-5.15)
+      if [ "$SUBLEVEL" -le 41 ]; then
+        sed -i '/^#include <linux\/shmem_fs.h>$/a #include <linux/mnt_idmapping.h>' fs/namespace.c
+        sed -i '/^#include <linux\/compat.h>$/a #include <linux/mnt_idmapping.h>' fs/open.c
+        perl -0777 -i -pe 's{(if \(inode\) \{\n)\t\t/\*\n(\t\t \*[^\n]*\n)+\t\t \*/\n}{$1}g; s{^[[:space:]]*u32 mask = mark->mask & IN_ALL_EVENTS;\n}{}m' fs/notify/fdinfo.c
+        perl -i -pe 's/\bmask,\s*mark->ignored_mask/inotify_mark_user_mask(mark)/g' fs/notify/fdinfo.c
+        perl -i -pe 's/ignored_mask:%x/ignored_mask:0/g' fs/notify/fdinfo.c
+        python3 -c 'import re;c=open("fs/notify/fdinfo.c").read();c=re.sub(r"^static void inotify_fdinfo\(struct seq_file \*m, struct fsnotify_mark \*mark\)$",lambda m:"static inline u32 inotify_mark_user_mask(struct fsnotify_mark *mark)\n{\n\treturn mark->mask & IN_ALL_EVENTS;\n}\n\n"+m.group(0),c,count=1,flags=re.MULTILINE);open("fs/notify/fdinfo.c","w").write(c)'
+      fi
+      [ "$SUBLEVEL" -ge 197 ] && sed -i '/^#include <trace\/hooks\/blk.h>$/d' fs/namespace.c || true
+      [ "$SUBLEVEL" -ge 197 ] && sed -i '/^#include <trace\/hooks\/mm.h>$/d' fs/proc/task_mmu.c || true ;;
+    gki-android14-6.1)
+      [ "$SUBLEVEL" -le 25 ] && sed -i '/^#include <trace\/events\/oom.h>$/a #include <trace/hooks/sched.h>' fs/proc/base.c || true
+      [ "$SUBLEVEL" -le 141 ] && sed -i '/^#include <linux\/cpufreq_times.h>$/a #include <linux/dma-buf.h>' fs/proc/base.c || true
+      [ "$SUBLEVEL" -ge 157 ] && sed -i '/^#include <trace\/hooks\/blk.h>$/d' fs/namespace.c || true ;;
+    gki-android15-6.6)
+      # NOTE: the __fold_filemap_fixup_entry stub (WK, sub<=30 + SPL 2024-07)
+      # is intentionally not ported: unreachable on our trees (6.6-lts >> 30).
+      [ "$SUBLEVEL" -le 92 ] && sed -i '/^#include <linux\/cpufreq_times.h>$/a #include <linux/dma-buf.h>' fs/proc/base.c || true
+      [ "$SUBLEVEL" -le 57 ] && sed -i '/^#include <linux\/sched\/sysctl.h>$/a #include <linux/zswap.h>' mm/memory.c || true ;;
+    gki-android16-6.12)
+      [ "$SUBLEVEL" -ge 58 ] && sed -i '/^#include <linux\/dma-buf.h>$/d' fs/exec.c || true
+      [ "$SUBLEVEL" -ge 69 ] && sed -i 's/vma_data_pages/vma_pages/g' fs/proc/task_mmu.c || true ;;
+  esac
+  )
+  patch -p1 --fuzz=3 --directory=common < "$PATCH"
+  # Fail closed: GNU patch tolerates drift, so verify it did not half-apply.
+  if find common/fs common/mm common/kernel common/drivers common/security common/include -name '*.rej' 2>/dev/null | grep -q .; then
+    echo "setup-susfs: patch left .rej files:" >&2
+    find common/fs common/mm common/kernel common/drivers common/security common/include -name '*.rej' >&2
+    exit 2
+  fi
+  # Per-file marker check: every file the 50_ patch touches must contain a
+  # susfs token afterwards (verified: true for all 23/24 files on every
+  # simonpunk per-version branch). Catches fuzz misplaces and half-applies
+  # that exit 0 with no .rej. File list derived from the patch itself, so
+  # 6.6/6.12's extra selinux file is covered without hardcoding.
+  MISSING=""
+  while IFS= read -r f; do
+    grep -qi "susfs" "common/$f" 2>/dev/null || MISSING="$MISSING $f"
+  done < <(grep -E '^diff --git ' "$PATCH" | awk '{print $4}' | sed 's|^b/||')
+  if [ -n "$MISSING" ]; then
+    echo "setup-susfs: post-patch marker check FAILED, no susfs token in:$MISSING" >&2
+    exit 2
+  fi
+  echo "setup-susfs: applied 50_add_susfs_in_${GKI_VER}.patch (all file markers present)"
 fi
 printf '%s %s\n' "$GKI_VER" "$SUSFS_SHA" > .susfs-version
 
@@ -97,7 +162,18 @@ mkdir -p .fragments
 cat > .fragments/susfs.config <<'EOF'
 # SuSFS root hiding (written by setup-susfs.sh; only exists when the susfs
 # step ran, so patched source and symbol always agree). KSU side hooks come
-# from KernelSU-Next@dev-susfs; sub-options keep upstream defaults.
+# from KernelSU-Next@dev-susfs. All sub-features explicitly on (upstream
+# defaults are y, none deprecated; explicit so a future default flip cannot
+# silently neuter hiding).
 CONFIG_KSU_SUSFS=y
+CONFIG_KSU_SUSFS_SUS_PATH=y
+CONFIG_KSU_SUSFS_SUS_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_KSTAT=y
+CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+CONFIG_KSU_SUSFS_ENABLE_LOG=y
+CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
+CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+CONFIG_KSU_SUSFS_SUS_MAP=y
 EOF
 echo "setup-susfs: kernel patched, fragment written"
