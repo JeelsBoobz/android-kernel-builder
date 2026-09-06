@@ -18,7 +18,7 @@
 # device-generic.
 set -euo pipefail
 
-IMAGE=""; REV=""; OUT=""; AKDIR=""; FEATURES="stock GKI"
+IMAGE=""; REV=""; OUT=""; AKDIR=""; FEATURES="stock GKI"; KCONFIG=""
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 while [ $# -gt 0 ]; do
@@ -27,6 +27,7 @@ while [ $# -gt 0 ]; do
     --rev) REV="$2"; shift 2 ;;
     --features) FEATURES="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
+    --kconfig) KCONFIG="$2"; shift 2 ;;
     --akdir) AKDIR="$2"; shift 2 ;;
     *) echo "pack-anykernel: unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -59,6 +60,9 @@ IFS=$OLDIFS
 sed -i -e "/@FEATURE_LINES@/r $stage/features.tmp" -e "/@FEATURE_LINES@/d" "$stage/anykernel.sh"
 grep -q "@REV@\|@FEATURE_LINES@\|@DATE@" "$stage/anykernel.sh" && { echo "pack-anykernel: unstamped placeholder left" >&2; exit 1; }
 cp -a "$IMAGE" "$stage/"
+# Resolved kernel .config alongside the image (stock GKI already has
+# IKCONFIG=y, so this mirrors /proc/config.gz for offline inspection).
+if [ -n "${KCONFIG:-}" ] && [ -f "$KCONFIG" ]; then cp -a "$KCONFIG" "$stage/kernel.config"; fi
 cat > "$stage/version" <<EOF
 $REV
 Built $(date -u +"%Y-%m-%d %H:%M UTC")

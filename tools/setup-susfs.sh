@@ -67,18 +67,16 @@ case "$OUR_BRANCH" in
     exit 0 ;;
 esac
 
-# Trees simonpunk covers but our -lts tips cannot take yet. Since the May-12
-# "selinux detection" sync, the 6.6/6.12 patches call
-# security_*_with_policy() (10 sites), which exist in NONE of our trees
-# (6.6.142, 6.12.92, even 6.18) -- their SELinux predates the API simonpunk
-# tracks. Unfixable from our side (core SELinux); re-enable when a tree
-# advances past it. Deliberately NOT pinned to the pre-API parents: that
-# would drop 3.5 months incl. the zygote_next exploit fix and OPEN_REDIRECT
-# leak/deadlock fixes -- stale hiding is worse than none. (WK floats on tip
-# too, with an equivalent susfs_commit escape hatch.)
+# 6.6-only suppression: simonpunk's 6.6 patch needs the new SELinux API and
+# targets newer 6.6 than any published GKI (latest android15-6.6 = pre-API),
+# with no green precedent anywhere (WK ships 6.6 susfs-free too). 6.12 goes
+# through the normal path below: its patch's with_policy calls resolve via
+# the KSU driver's global definitions (see the linkage port in
+# setup-kernelsu-next.sh), so no tree API is required. Re-enable 6.6 when a
+# green precedent exists.
 case "$GKI_VER" in
-  gki-android15-6.6|gki-android16-6.12)
-    write_suppression "SELinux _with_policy API absent from $GKI_VER tree; gated until tree advances (pinning to pre-API parents rejected: drops security fixes)"
+  gki-android15-6.6)
+    write_suppression "6.6 patch needs newer SELinux API than published GKI provides; gated pending green precedent"
     exit 0 ;;
 esac
 

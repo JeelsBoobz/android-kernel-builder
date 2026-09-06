@@ -71,3 +71,27 @@ CONFIG_KPROBES=y
 CONFIG_EXT4_FS=y
 EOF
 echo "setup-kernelsu-next: driver linked, fragment written"
+
+# WK static.patch port (SuSFS linkage): dev-susfs selinux_hide.c carries
+# static forward-decls of security_*_with_policy() with GLOBAL definitions
+# below; SuSFS's kernel patch calls them from selinuxfs.c/hooks.c, which
+# needs external linkage -- otherwise vmlinux fails with undefined symbols
+# on trees whose SELinux predates the API (e.g. 6.12.92). Flip the three
+# decls to global iff the static block is present (proves expected
+# layout); anything else fails closed. Attribution:
+# WildKernels/GKI_KernelSU_SUSFS .github/actions/kernelsu/patches/static.patch.
+SEHIDE="$NAME/kernel/feature/selinux_hide.c"
+if grep -q "^static int security_context_to_sid_with_policy" "$SEHIDE" 2>/dev/null; then
+  sed -i \
+    -e 's/^static int security_context_to_sid_with_policy/int security_context_to_sid_with_policy/' \
+    -e 's/^static int security_sid_to_context_with_policy/int security_sid_to_context_with_policy/' \
+    -e 's/^static void security_compute_av_user_with_policy/void security_compute_av_user_with_policy/' \
+    "$SEHIDE"
+  grep -q "^static \(int\|void\) security_\(context_to_sid\|sid_to_context\|compute_av_user\)_with_policy" "$SEHIDE" && \
+    { echo "setup-kernelsu-next: selinux_hide linkage patch incomplete" >&2; exit 2; }
+  grep -q "^int security_context_to_sid_with_policy" "$SEHIDE" || \
+    { echo "setup-kernelsu-next: selinux_hide linkage patch missing" >&2; exit 2; }
+  echo "setup-kernelsu-next: selinux_hide with_policy linkage set global (SuSFS)"
+else
+  echo "setup-kernelsu-next: no static with_policy block (plain ref or old KSU); linkage untouched"
+fi

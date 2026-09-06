@@ -415,6 +415,13 @@ jobs:
             [ -f "$OUT/$cand" ] && IMG="$OUT/$cand" && break
           done
           [ -n "$IMG" ] || { echo "no kernel image for AK3 zip; skipping"; exit 0; }
+          # Resolved .config rides in the zip as kernel.config (best-effort:
+          # build.sh and Kleaf stash it at different depths; absent = skip).
+          KCONFIG=""
+          for kc in $(find out bazel-bin/common -maxdepth 6 -name ".config" 2>/dev/null | head -n 5); do
+            [ -f "$kc" ] && KCONFIG="$kc" && break
+          done
+          [ -n "$KCONFIG" ] && echo "ak3 kconfig: $KCONFIG" || echo "ak3 kconfig: none found, skipping"
           mkdir -p "$GITHUB_WORKSPACE/release"
           # Zip name carries the kernel version: android12-5.10-stable +
           # SUBLEVEL 269 -> anykernel-android12-5.10-269-stable.zip.
@@ -435,7 +442,7 @@ jobs:
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | paste -sd: -)
           bash "$GITHUB_WORKSPACE/builder/tools/pack-anykernel.sh" \
             --image "$IMG" --rev "$ZIPREV" \
-            --features "${INT}${FRAGS}" \
+            --features "${INT}${FRAGS}" --kconfig "$KCONFIG" \
             --out "$GITHUB_WORKSPACE/release/anykernel-$ZIPREV.zip"
 
       # Raw outputs (Image/vmlinux/System.map) stay here; the AK3 zip
