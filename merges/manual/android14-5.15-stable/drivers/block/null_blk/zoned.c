@@ -1,4 +1,4 @@
-if (WARN_ON_ONCE(!dev->zone_size_sects))
+	if (WARN_ON_ONCE(!dev->zone_size_sects))
 	return 0;
 	if (dev->zone_size_sects_shift)
 		return sect >> dev->zone_size_sects_shift;
