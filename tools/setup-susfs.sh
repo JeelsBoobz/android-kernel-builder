@@ -220,7 +220,7 @@ else
   fi
   echo "setup-susfs: applied 50_add_susfs_in_${GKI_VER}.patch (all file markers present)"
 fi
-printf '%s %s\n' "$GKI_VER" "$SUSFS_SHA" > .susfs-version
+printf '%s %s %s\n' "$GKI_VER" "$SUSFS_SHA" "${REF:-}" > .susfs-version
 
 mkdir -p .fragments
 cat > .fragments/susfs.config <<'EOF'

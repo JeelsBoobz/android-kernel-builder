@@ -35,7 +35,7 @@ on:
         description: "Partition Guard branch/tag/commit (default: main)"
         default: ""
       susfs:
-        description: "Integrate simonpunk SuSFS root hiding (needs ksu_ref dev-susfs; 6.18 skips)"
+        description: "Integrate simonpunk SuSFS root hiding (needs ksu_ref dev-susfs; gated on 6.6/6.12/6.18)"
         type: boolean
         default: false
       susfs_ref:
@@ -412,6 +412,16 @@ jobs:
           path: kernel/.ksu-version
           if-no-files-found: ignore
 
+      # Absent on trees where SuSFS gated out (suppression) or KSU lacks
+      # hooks (plain ref): presence of this file MEANS SuSFS built.
+      - name: Upload SuSFS version
+        if: inputs.susfs != false
+        uses: actions/upload-artifact@v4
+        with:
+          name: susfs-version-${{ steps.rev.outputs.rev }}
+          path: kernel/.susfs-version
+          if-no-files-found: ignore
+
   # One release per run: gathers every AnyKernel3 zip (partial success
   # still publishes what built). Raw Image/vmlinux/System.map stay as
   # run artifacts only. Re-runs reuse the same tag (upload --clobber).
@@ -434,6 +444,15 @@ jobs:
           merge-multiple: true
         # Zero match (ksu=false, total build failure) must not fail the job;
         # the Publish step degrades to ref-based text in that case.
+        continue-on-error: true
+      - name: Fetch SuSFS versions
+        uses: actions/download-artifact@v4
+        with:
+          pattern: susfs-version-*
+          path: susfsversions
+          merge-multiple: true
+        # Absent for gated trees by design (see Upload step); missing files
+        # mean that branch built WITHOUT SuSFS, not that the build failed.
         continue-on-error: true
       - name: Checkout builder (template + HEAD subject)
         uses: actions/checkout@v4
@@ -467,6 +486,35 @@ jobs:
             done
             [ -n "$KSU_FIRST" ] && KSU_DISPLAY="$KSU_OUT"
           fi
+          # Resolved SuSFS versions (one "GKI_VER SHA REF" file per branch
+          # that BUILT WITH SuSFS). Branches that built without it (gated
+          # trees, plain KSU ref) are enumerated from the KSU files, which
+          # exist for every ksu-enabled build. Absent files = off, not failed.
+          SUSFS_DISPLAY="off"; SUSFS_TG="off"
+          if [ "${{ inputs.susfs }}" != "false" ]; then
+            SUSFS_DISPLAY="on"; SUSFS_ON=""; SUSFS_OFF=""; SUSFS_N=0
+            for vf in ksuversions/ksu-version-*.txt; do
+              [ -f "$vf" ] || continue
+              b=$(basename "$vf" .txt); b=${b#ksu-version-}
+              short=${b%-stable}; short=${short%-lts}
+              sf="susfsversions/susfs-version-$b.txt"
+              if [ -f "$sf" ]; then
+                read -r ver sha ref < "$sf"
+                SUSFS_ON="${SUSFS_ON:+$SUSFS_ON, }$short:$sha"
+                SUSFS_N=$((SUSFS_N + 1))
+              else
+                SUSFS_OFF="${SUSFS_OFF:+$SUSFS_OFF, }$short"
+              fi
+            done
+            if [ -n "$SUSFS_ON" ]; then
+              SUSFS_DISPLAY="$SUSFS_ON"
+              [ -n "$SUSFS_OFF" ] && SUSFS_DISPLAY="$SUSFS_DISPLAY; off: $SUSFS_OFF"
+              SUSFS_TG="on ($SUSFS_N trees)"
+              [ -n "$SUSFS_OFF" ] && SUSFS_TG="$SUSFS_TG; off: $SUSFS_OFF"
+            elif [ -n "$SUSFS_OFF" ]; then
+              SUSFS_DISPLAY="off ($SUSFS_OFF)"
+            fi
+          fi
           {
             echo "## ⚡ GKI Kernel \`$TAG\`"
             echo ""
@@ -478,7 +526,7 @@ jobs:
             echo "|---|---|"
             echo "| Branches | \`${{ inputs.branch || 'all' }}\` |"
             echo "| KernelSU-Next | \`$KSU_DISPLAY\` |"
-            echo "| SuSFS (experimental) | \`${{ inputs.susfs }}\` |"
+            echo "| SuSFS (experimental) | \`$SUSFS_DISPLAY\` |"
             echo "| NoMount | \`${{ inputs.nomount }}\` |"
             echo "| Partition Guard | \`${{ inputs.guard }}\` |"
             echo "| Extra fragments | \`${{ inputs.fragments }}\` |"
@@ -507,7 +555,7 @@ jobs:
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
           {
             [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next $KSU_DISPLAY"
-            [ "${{ inputs.susfs }}" = "true" ] && echo "• SuSFS root hiding (experimental)"
+            [ "${{ inputs.susfs }}" = "true" ] && echo "• SuSFS $SUSFS_TG"
             [ "${{ inputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
             [ "${{ inputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
             echo "• Fragments: $FRAGS"
