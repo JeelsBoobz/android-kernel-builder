@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# refresh-pins: weekly upstream-tip check for variant SHAs.
+#
+# Pins freeze components for parity; without this they age silently.
+# Every Monday 06:00 UTC (and on demand): compare the 4 tracked tips
+# against variants/*.json; if anything moved, open a PR with the bump.
+# Human merges (bot commits carry no GPG signature); the clock fleet
+# validates after merge. No movement = no PR = no noise.
+name: refresh-pins
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 tools/refresh-pins.py || STALE=$?
+          if [ "${STALE:-0}" = "0" ]; then echo "pins current; nothing to do"; exit 0; fi
+          python3 tools/refresh-pins.py --write
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add variants/
+          git commit -m "pins: refresh to upstream tips $(date -u +%Y-%m-%d)" || exit 0
+          git push || echo "push failed; next tick retries"
