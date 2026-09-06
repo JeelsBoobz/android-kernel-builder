@@ -43,11 +43,12 @@ fi
 KSU_COUNT=$(git -C "$NAME" rev-list --count HEAD)
 KSU_TAG=$(git -C "$NAME" describe --tags --abbrev=0)
 KSU_SHA=$(git -C "$NAME" rev-parse --short HEAD)
-echo "setup-kernelsu-next: source at $KSU_SHA ($KSU_TAG)"
-# Resolved identity for release notes (TAG SHA requested-REF; empty REF =
-# latest tag). Written into the repo-sync root; the workflow uploads it.
-printf '%s %s %s\n' "$KSU_TAG" "$KSU_SHA" "${REF:-}" > .ksu-version
 KSU_VERSION=$((30000 + KSU_COUNT))
+echo "setup-kernelsu-next: source at $KSU_SHA ($KSU_TAG, versionCode $KSU_VERSION)"
+# Resolved identity for release notes (TAG SHA requested-REF versionCode;
+# empty REF = latest tag). Written into the repo-sync root; the workflow
+# uploads it. versionCode is what the manager APK must match.
+printf '%s %s %s %s\n' "$KSU_TAG" "$KSU_SHA" "${REF:-}" "$KSU_VERSION" > .ksu-version
 KSU_KBUILD=common/drivers/kernelsu/Kbuild
 sed -i "s/^KSU_VERSION_FALLBACK := .*/KSU_VERSION_FALLBACK := $KSU_VERSION/" "$KSU_KBUILD"
 sed -i "s/^KSU_VERSION_TAG_FALLBACK := .*/KSU_VERSION_TAG_FALLBACK := $KSU_TAG/" "$KSU_KBUILD"

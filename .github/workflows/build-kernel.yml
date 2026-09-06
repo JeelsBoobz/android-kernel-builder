@@ -552,7 +552,7 @@ jobs:
           # exactly; dev-susfs trees carry extra commits (see KSU row).
           MANAGER_URL="https://nightly.link/KernelSU-Next/KernelSU-Next/workflows/build-manager-ci/dev/manager.zip"
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | tr '\n' ' ')
-          # Resolved KSU versions (one "TAG SHA REF" file per built branch).
+          # Resolved KSU versions (one "TAG SHA REF VCODE" file per built branch).
           # Uniform -> single value; mixed -> common plus branch outliers;
           # absent -> the requested ref, still true-led. powers the table + telegram.
           KSU_DISPLAY="false"
@@ -561,8 +561,8 @@ jobs:
             KSU_FIRST=""; KSU_OUT=""
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue
-              read -r tag sha ref < "$vf"
-              if [ -z "$ref" ] || [ "$ref" = "$tag" ]; then d="$tag"; else d="$ref@$sha"; fi
+              read -r tag sha ref vcode < "$vf"
+              if [ -z "$ref" ] || [ "$ref" = "$tag" ]; then d="$tag ($vcode)"; else d="$tag $ref@$sha ($vcode)"; fi
               b=$(basename "$vf" .txt); b=${b#ksu-version-}
               if [ -z "$KSU_FIRST" ]; then KSU_FIRST="$d"; KSU_OUT="$d";
               elif [ "$d" != "$KSU_FIRST" ]; then KSU_OUT="$KSU_OUT; $b: $d"; fi
