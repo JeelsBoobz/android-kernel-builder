@@ -35,6 +35,21 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# KSU-only fallback: force the whole KSU_SUSFS family off. Load-bearing,
+# not cosmetic -- dev-susfs's KSU_SUSFS defaults to y, and with =y the
+# driver #includes <linux/susfs*.h>, which do not exist without the
+# kernel-side patch. Forcing off keeps the driver on its plain-dev code
+# paths (all susfs refs are #ifdef-guarded).
+write_suppression() { # $1 reason
+  mkdir -p .fragments
+  cat > .fragments/susfs.config <<'EOF'
+# No SuSFS on this tree: force the whole KSU_SUSFS family off so dev-susfs
+# builds its plain-dev paths.
+# CONFIG_KSU_SUSFS is not set
+EOF
+  echo "setup-susfs: $1; wrote KSU_SUSFS suppression, KSU-only build"
+}
+
 # Our -stable branch -> simonpunk gki branch. -lts accepted the same way
 # (suffix ignored); anything unmapped (6.18+) skips cleanly.
 case "$OUR_BRANCH" in
@@ -46,20 +61,21 @@ case "$OUR_BRANCH" in
   android15-6.6-*)  GKI_VER="gki-android15-6.6" ;;
   android16-6.12-*) GKI_VER="gki-android16-6.12" ;;
   *)
-    # No upstream branch for 6.18+: KSU-only build. The suppression below
-    # is load-bearing, not cosmetic -- dev-susfs's KSU_SUSFS defaults to y,
-    # and with =y the driver #includes <linux/susfs*.h>, which do not exist
-    # without the kernel-side patch. Forcing the family off keeps the driver
-    # on its plain-dev code paths (all susfs refs are #ifdef-guarded).
-    mkdir -p .fragments
-    cat > .fragments/susfs.config <<'EOF'
-# No SuSFS on this tree (no upstream per-version branch): force the whole
-# KSU_SUSFS family off so dev-susfs builds its plain-dev paths.
-# CONFIG_KSU_SUSFS is not set
-EOF
-    echo "setup-susfs: no upstream branch for '$OUR_BRANCH' (6.18+); wrote KSU_SUSFS suppression, KSU-only build"
+    # No upstream branch for 6.18+: KSU-only build (suppression written
+    # below; see write_suppression rationale).
+    write_suppression "no upstream branch for '$OUR_BRANCH' (6.18+)"
     exit 0 ;;
 esac
+
+# Trees simonpunk covers but our -lts tip cannot take yet. 6.6: the 50_
+# patch calls security_*_with_policy() (10 sites), which do not exist in
+# android15-6.6-lts (sublevel 142) -- its SELinux predates the refactor
+# simonpunk tracks. Unfixable from our side (core SELinux); re-enable when
+# the tree advances past it.
+if [ "$GKI_VER" = "gki-android15-6.6" ]; then
+  write_suppression "SELinux _with_policy API absent from android15-6.6-lts; gated until tree advances"
+  exit 0
+fi
 
 # KSU side with SUSFS hooks (dev-susfs / next-susfs) gets the kernel patch.
 # A plain KSU build (e.g. 6.18 pinned to dev via a ksu_ref branch:ref map)
@@ -99,9 +115,11 @@ if grep -q "susfs_is_current_ksu_domain" common/fs/namespace.c 2>/dev/null; then
 else
   # Drift fakes, method: WildKernels susfs-patches action (sublevel-gated
   # sed pre-edits so the 50_ context matches, then GNU patch which tolerates
-  # residual offsets via fuzz). simonpunk's patch base trails/lead our -lts
-  # tips (e.g. 6.1/5.15 still carry trace/hooks/blk.h which the patch context
-  # lacks), so without these the hunk fails exactly as seen (namespace.c:32).
+  # residual offsets via fuzz). simonpunk's patch base is NEWER GKI than our
+  # -lts tips (e.g. ours still carry trace/hooks/blk.h which the patch
+  # context lacks), so without these the hunk fails (namespace.c:32).
+  # Dropped includes are restored post-patch (restore_include below) -- the
+  # patch must not see them, but the compiler must.
   SUBLEVEL=$(grep -E "^SUBLEVEL" common/Makefile | awk '{print $3}')
   echo "setup-susfs: sublevel $SUBLEVEL, applying drift fakes for $GKI_VER"
   (
@@ -148,6 +166,28 @@ else
   esac
   )
   patch -p1 --fuzz=3 --directory=common < "$PATCH"
+  # Restore vendor-hook includes the drift fakes dropped above. simonpunk's
+  # base is newer GKI where Google removed these lines, but our -lts tips
+  # still carry AND need them: trace/hooks/blk.h declares
+  # trace_android_vh_do_new_mount_fc (namespace.c fails without it), and
+  # linux/dma-buf.h declares susfs's exec helpers. Re-add is idempotent
+  # (grep-guarded) and skipped if the header itself is gone in-tree.
+  restore_include() { # $1 file $2 anchor-ere $3 include-line $4 header-path
+    grep -qF "$3" "common/$1" 2>/dev/null && return 0
+    if [ ! -f "common/$4" ]; then
+      echo "setup-susfs: WARN header gone in-tree, skip restore: $4" >&2; return 0
+    fi
+    sed -i "/$2/a $3" "common/$1"
+  }
+  case "$GKI_VER" in
+    gki-android13-5.15|gki-android14-5.15)
+      restore_include fs/namespace.c '^#include "internal.h"$' '#include <trace/hooks/blk.h>' include/trace/hooks/blk.h
+      restore_include fs/proc/task_mmu.c '^#include <linux/pkeys.h>$' '#include <trace/hooks/mm.h>' include/trace/hooks/mm.h ;;
+    gki-android14-6.1)
+      restore_include fs/namespace.c '^#include "internal.h"$' '#include <trace/hooks/blk.h>' include/trace/hooks/blk.h ;;
+    gki-android16-6.12)
+      restore_include fs/exec.c '^#include <linux/ksm.h>$' '#include <linux/dma-buf.h>' include/linux/dma-buf.h ;;
+  esac
   # Fail closed: GNU patch tolerates drift, so verify it did not half-apply.
   if find common/fs common/mm common/kernel common/drivers common/security common/include -name '*.rej' 2>/dev/null | grep -q .; then
     echo "setup-susfs: patch left .rej files:" >&2
