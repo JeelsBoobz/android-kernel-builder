@@ -67,15 +67,20 @@ case "$OUR_BRANCH" in
     exit 0 ;;
 esac
 
-# Trees simonpunk covers but our -lts tip cannot take yet. 6.6: the 50_
-# patch calls security_*_with_policy() (10 sites), which do not exist in
-# android15-6.6-lts (sublevel 142) -- its SELinux predates the refactor
-# simonpunk tracks. Unfixable from our side (core SELinux); re-enable when
-# the tree advances past it.
-if [ "$GKI_VER" = "gki-android15-6.6" ]; then
-  write_suppression "SELinux _with_policy API absent from android15-6.6-lts; gated until tree advances"
-  exit 0
-fi
+# Trees simonpunk covers but our -lts tips cannot take yet. Since the May-12
+# "selinux detection" sync, the 6.6/6.12 patches call
+# security_*_with_policy() (10 sites), which exist in NONE of our trees
+# (6.6.142, 6.12.92, even 6.18) -- their SELinux predates the API simonpunk
+# tracks. Unfixable from our side (core SELinux); re-enable when a tree
+# advances past it. Deliberately NOT pinned to the pre-API parents: that
+# would drop 3.5 months incl. the zygote_next exploit fix and OPEN_REDIRECT
+# leak/deadlock fixes -- stale hiding is worse than none. (WK floats on tip
+# too, with an equivalent susfs_commit escape hatch.)
+case "$GKI_VER" in
+  gki-android15-6.6|gki-android16-6.12)
+    write_suppression "SELinux _with_policy API absent from $GKI_VER tree; gated until tree advances (pinning to pre-API parents rejected: drops security fixes)"
+    exit 0 ;;
+esac
 
 # KSU side with SUSFS hooks (dev-susfs / next-susfs) gets the kernel patch.
 # A plain KSU build (e.g. 6.18 pinned to dev via a ksu_ref branch:ref map)

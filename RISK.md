@@ -38,7 +38,7 @@ revisited whenever a build proves otherwise.
 | 10 | KernelSU-Next driver | MEDIUM | Privileged hook surface (execve/kallsyms/SEPolicy), but huge fleet, toggleable (`ksu=false`), version-churn contained (6.18 policydb) |
 | 11 | NoMount VFS redirection | MEDIUM | Path interposition, RAM-only, smaller fleet than KSU, toggleable |
 | 12 | Partition Guard LSM | LOW | Own ~400-line deny-only LSM; audited per tree (5.10→6.18 API table); fail-open; narrow scope (NVRAM/persist/EFS) |
-| 22 | SuSFS root hiding | MEDIUM | Experimental, default-off; 23-file VFS hook surface but payload byte-identical across versions + version-matched 50_ patch; KSU side carried by dev-susfs (no 10_ patch); drift includes dropped-then-restored (tree needs what patch base removed); 6.18 + 6.6 KSU-only via suppression (no branch / SELinux _with_policy predates tree) |
+| 22 | SuSFS root hiding | MEDIUM | Experimental, default-off; 23-file VFS hook surface but payload byte-identical across versions + version-matched 50_ patch; KSU side carried by dev-susfs (no 10_ patch); drift includes dropped-then-restored (tree needs what patch base removed); 6.18 + 6.6 + 6.12 KSU-only via suppression (no branch / SELinux _with_policy predates tree; pinning to pre-API parents rejected) |
 
 ## Build-time tree mutations
 
