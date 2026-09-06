@@ -1,0 +1,9 @@
+# Release footnotes, appended to BOTH the GitHub release body (as ### Notes)
+# and the Telegram post (as Notes). Edit freely per release.
+# Convention (keeps both surfaces native): plain text, one note per line,
+# start bullets with "• ". Lines starting with # are comments (stripped).
+# Telegram is HTML-escaped automatically, so write RAW text (no <b> etc.).
+• Experimental: SuSFS root hiding is newly integrated and not yet proven on device
+• Kernel base tested on android12-5.10; other trees compile green but await device testing
+• SuSFS ships on 5.10 / 5.15 / 6.1 trees only — android15-6.6, android16-6.12 and android17-6.18 ship without it (upstream SuSFS gap, re-enabled when it closes)
+• This release is built from -lts tips on all trees (no -stable content)
