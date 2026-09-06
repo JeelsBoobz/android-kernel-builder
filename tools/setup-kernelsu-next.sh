@@ -28,10 +28,27 @@ done
 NAME="KernelSU-Next"
 [ -d "$NAME" ] || git clone "https://github.com/$REPO" "$NAME"
 
+# Pin first: upstream setup.sh swallows checkout failures
+# (`git checkout $1 || echo "Checkout default branch"`) and silently
+# stays on dev -- observed shipping dev as dev-susfs. So checkout the ref
+# ourselves (fail fast), run the installer for its symlink/hook work,
+# then verify HEAD (fail closed on any drift, e.g. a pull moving a branch).
+if [ -n "$REF" ]; then
+  git -C "$NAME" fetch origin "$REF" 2>/dev/null || git -C "$NAME" fetch origin || true
+  git -C "$NAME" checkout -q "$REF" || { echo "setup-kernelsu-next: cannot checkout ref '$REF'" >&2; exit 2; }
+fi
+
 if [ -n "$REF" ]; then
   bash "$NAME/kernel/setup.sh" "$REF"
 else
   bash "$NAME/kernel/setup.sh"
+fi
+
+if [ -n "$REF" ]; then
+  WANT=$(git -C "$NAME" rev-parse "$REF^{commit}" 2>/dev/null || true)
+  GOT=$(git -C "$NAME" rev-parse HEAD)
+  [ -n "$WANT" ] && [ "$WANT" = "$GOT" ] || { echo "setup-kernelsu-next: HEAD $GOT != requested $REF ($WANT); refusing silent drift" >&2; exit 2; }
+  echo "setup-kernelsu-next: HEAD verified at $GOT ($REF)"
 fi
 
 # KSU bakes its version from git (rev-list --count + describe --tags), but

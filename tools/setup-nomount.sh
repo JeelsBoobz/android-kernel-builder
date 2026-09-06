@@ -32,6 +32,13 @@ else
   bash "$NAME/kernel/setup.sh"
 fi
 
+if [ -n "$REF" ]; then
+  WANT=$(git -C "$NAME" rev-parse "$REF^{commit}" 2>/dev/null || true)
+  GOT=$(git -C "$NAME" rev-parse HEAD)
+  [ -n "$WANT" ] && [ "$WANT" = "$GOT" ] || { echo "setup-nomount: HEAD $GOT != requested $REF ($WANT); refusing silent drift" >&2; exit 2; }
+  echo "setup-nomount: HEAD verified at $GOT ($REF)"
+fi
+
 mkdir -p .fragments
 cat > .fragments/nomount.config <<'EOF'
 # NoMount VFS redirection (written by setup-nomount.sh; only exists when the

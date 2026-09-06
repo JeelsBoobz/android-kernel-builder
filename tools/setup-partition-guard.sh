@@ -31,6 +31,13 @@ else
   bash "$NAME/kernel/setup.sh"
 fi
 
+if [ -n "$REF" ]; then
+  WANT=$(git -C "$NAME" rev-parse "$REF^{commit}" 2>/dev/null || true)
+  GOT=$(git -C "$NAME" rev-parse HEAD)
+  [ -n "$WANT" ] && [ "$WANT" = "$GOT" ] || { echo "setup-partition-guard: HEAD $GOT != requested $REF ($WANT); refusing silent drift" >&2; exit 2; }
+  echo "setup-partition-guard: HEAD verified at $GOT ($REF)"
+fi
+
 mkdir -p .fragments
 cat > .fragments/guard.config <<'EOF'
 # Partition Guard LSM (written by setup-partition-guard.sh; only exists

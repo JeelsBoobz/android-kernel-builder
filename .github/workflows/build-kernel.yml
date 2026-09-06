@@ -446,40 +446,8 @@ jobs:
           [ "${#files[@]}" -gt 0 ] || { echo "no AnyKernel3 zips; skipping release"; exit 0; }
           TAG="kernel-build-r${{ github.run_number }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments" && ls common/*.config 2>/dev/null | sed 's|common/||; s/\.config$//'; ls android*/*.config 2>/dev/null | sed 's|/|/|; s/\.config$//' | awk -F/ '{print $1":"$2}' | paste -sd' ' -)
-          BBRV3_DISPLAY="false"; BBRV3_TG="false"
-          if [ "${{ needs.resolve.outputs.bbrv3 }}" != "false" ]; then
-            BBRV3_ON=0; BBRV3_OFF=""
-            for vf in ksuversions/ksu-version-*.txt; do
-              [ -f "$vf" ] || continue
-              b=$(basename "$vf" .txt); b=${b#ksu-version-}
-              short=${b%-lts}
-              if [ -f "bbrv3versions/bbrv3-version-$b.txt" ]; then
-                BBRV3_ON=$((BBRV3_ON + 1))
-              else
-                BBRV3_OFF="${BBRV3_OFF:+$BBRV3_OFF, }$short"
-              fi
-            done
-            if [ "$BBRV3_ON" -gt 0 ]; then
-              BBRV3_DISPLAY="true ($BBRV3_ON trees)"
-              BBRV3_TG="true ($BBRV3_ON trees)"
-              [ -n "$BBRV3_OFF" ] && BBRV3_DISPLAY="$BBRV3_DISPLAY; skipped: $BBRV3_OFF" && BBRV3_TG="$BBRV3_TG; skipped: $BBRV3_OFF"
-            fi
-          fi
-          KSU_DISPLAY="false"
-          if [ "${{ needs.resolve.outputs.ksu }}" != "false" ]; then
-            KSU_DISPLAY="true"
-            KSU_FIRST=""; KSU_OUT=""
-            for vf in ksuversions/ksu-version-*.txt; do
-              [ -f "$vf" ] || continue
-              read -r tag sha ref vcode < "$vf"
-              d="$tag ($vcode)"
-              b=$(basename "$vf" .txt); b=${b#ksu-version-}
-              if [ -z "$KSU_FIRST" ]; then KSU_FIRST="$d"; KSU_OUT="$d";
-              elif [ "$d" != "$KSU_FIRST" ]; then KSU_OUT="$KSU_OUT; $b: $d"; fi
-            done
-            [ -n "$KSU_FIRST" ] && KSU_DISPLAY="true: $KSU_OUT"
-          fi
+          FRAGS_C=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | tr '\n' ' ')
+          FRAGS_B=$(cd "$GITHUB_WORKSPACE/builder/fragments" && for d in android*; do [ -d "$d" ] || continue; for f in "$d"/*.config; do echo "$d:${f##*/}"; done 2>/dev/null | sed 's/\.config$//'; done | tr '\n' ' ')
           MANAGER_URL="https://nightly.link/KernelSU-Next/KernelSU-Next/workflows/build-manager-ci/dev/manager.zip"
           MANAGER_PIN="dev tip"
           if [ "${{ needs.resolve.outputs.ksu }}" != "false" ]; then
@@ -495,84 +463,32 @@ jobs:
               done
             fi
           fi
-          SUSFS_DISPLAY="false"; SUSFS_TG="false"
-          if [ "${{ needs.resolve.outputs.susfs }}" != "false" ]; then
-            SUSFS_ON=""; SUSFS_OFF=""; SUSFS_N=0
-            for vf in ksuversions/ksu-version-*.txt; do
-              [ -f "$vf" ] || continue
-              b=$(basename "$vf" .txt); b=${b#ksu-version-}
-              short=${b%-stable}; short=${short%-lts}
-              sf="susfsversions/susfs-version-$b.txt"
-              if [ -f "$sf" ]; then
-                read -r ver sha ref < "$sf"
-                SUSFS_ON="${SUSFS_ON:+$SUSFS_ON, }$short:$sha"
-                SUSFS_N=$((SUSFS_N + 1))
-              else
-                SUSFS_OFF="${SUSFS_OFF:+$SUSFS_OFF, }$short"
-              fi
-            done
-            if [ -n "$SUSFS_ON" ]; then
-              SUSFS_DISPLAY="true ($SUSFS_N trees)"
-              [ -n "$SUSFS_OFF" ] && SUSFS_DISPLAY="$SUSFS_DISPLAY; off: $SUSFS_OFF"
-              SUSFS_TG="$SUSFS_DISPLAY"
-            fi
-          fi
-          {
-            echo "## ⚡ GKI Kernel \`$TAG\`"
-            echo ""
-            echo "### 📦 Zips"
-            for z in "${files[@]}"; do echo "- \`$(basename "$z")\`"; done
-            echo ""
-            echo "### ⚙️ Build config"
-            echo "| Option | Value |"
-            echo "|---|---|"
-            echo "| Branches | \`${{ needs.resolve.outputs.branch }}\` |"
-            echo "| Variant | \`variants/${{ inputs.variant }}.json\` |"
-            echo "| KernelSU-Next | \`$KSU_DISPLAY\` |"
-            echo "| SuSFS (experimental) | \`$SUSFS_DISPLAY\` |"
-            echo "| BBRv3 (dormant) | \`$BBRV3_DISPLAY\` |"
-            echo "| NoMount | \`${{ needs.resolve.outputs.nomount }}\` |"
-            echo "| Partition Guard | \`${{ needs.resolve.outputs.guard }}\` |"
-            echo "| Fragments | $FRAGS |"
-            echo ""
-            echo "Each zip also carries \`kernel.config\` (resolved) + \`ikconfig\` (extracted from the image) for offline inspection."
-            echo ""
-            echo "### 📲 Flash"
-            echo "- AnyKernel3 zip for **your branch only**, flash in recovery or KernelSU manager"
-            echo "- No auto-backup — **back up \`boot\` first**"
-            echo "- Kernel always lives in \`boot\` (\`BLOCK=boot\`), slot-aware"
-            echo ""
-            echo "### 🔗 Links"
-            echo "- Build logs: $RUN_URL"
-            echo "- Risk register: [RISK.md](https://github.com/${{ github.repository }}/blob/main/RISK.md)"
-            if [ "${{ needs.resolve.outputs.ksu }}" = "true" ]; then echo "- Manager APK ($MANAGER_PIN, version-match with the KSU row above): $MANAGER_URL"; fi
-          } > release-notes.md
-          EXTRA="$GITHUB_WORKSPACE/builder/docs/RELEASE_NOTES_EXTRA.txt"
-          if [ -s "$EXTRA" ] && grep -qv '^[[:space:]]*#' "$EXTRA"; then
-            { echo ""; echo "### 📌 Notes"; echo ""; grep -v '^[[:space:]]*#' "$EXTRA"; } >> release-notes.md
-          fi
+          TAG="kernel-build-r${{ github.run_number }}" \
+          VARIANT="${{ inputs.variant }}" \
+          IN_KSU="${{ needs.resolve.outputs.ksu }}" IN_SUSFS="${{ needs.resolve.outputs.susfs }}" \
+          IN_BBRV3="${{ needs.resolve.outputs.bbrv3 }}" IN_NOMOUNT="${{ needs.resolve.outputs.nomount }}" \
+          IN_GUARD="${{ needs.resolve.outputs.guard }}" \
+          FRAGS_COMMON="$FRAGS_C" FRAGS_BRANCH="$FRAGS_B" \
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          REPO="${{ github.repository }}" \
+          MANAGER_URL="$MANAGER_URL" MANAGER_PIN="$MANAGER_PIN" \
+          python3 "$GITHUB_WORKSPACE/builder/tools/render-release.py" \
+            ksuversions susfsversions bbrv3versions zips \
+            "$GITHUB_WORKSPACE/builder/docs/RELEASE_NOTES_EXTRA.txt" \
+            release-notes.md tg-table.txt
           HL=$(git -C "$GITHUB_WORKSPACE/builder" log -1 --format=%s 2>/dev/null || echo "New build")
           HLESC=$(printf '%s' "$HL" | python3 -c 'import html,sys; print(html.escape(sys.stdin.read()), end="")' | sed 's/[&|\\/]/\\&/g')
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
-          {
-            [ "${{ needs.resolve.outputs.ksu }}" = "true" ] && echo "• KernelSU-Next: $KSU_DISPLAY"
-            [ "${{ needs.resolve.outputs.ksu }}" = "true" ] && echo "• Manager APK ($MANAGER_PIN): $MANAGER_URL"
-            [ "${{ needs.resolve.outputs.susfs }}" = "true" ] && echo "• SuSFS: $SUSFS_TG"
-            [ "${{ needs.resolve.outputs.bbrv3 }}" = "true" ] && echo "• BBRv3: $BBRV3_TG"
-            [ "${{ needs.resolve.outputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
-            [ "${{ needs.resolve.outputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
-            echo "• Fragments: $FRAGS"
-          } > /tmp/tg_features.txt
           sed -e "s|{KERNEL NAME}|GKI Kernel|" \
               -e "s|{VERSION}|$TAG|" \
               -e "s|{release URL}|https://github.com/${{ github.repository }}/releases/tag/$TAG|" \
               -e "s|{how to flash}|Flash the zip matching your branch in recovery or KernelSU manager|" \
               -e "s|{backup warning}|Back up boot first — no auto-backup|" \
-              -e "/• {change 1}/c\\• $HLESC" \
-              -e "/• {change 2}/d" \
+              -e "s|{HEADLINE}|$HLESC|" \
               -e "/{one file per line}/r /tmp/tg_files.txt" -e "/{one file per line}/d" \
-              -e "/• {feature 1}/r /tmp/tg_features.txt" -e "/• {feature 1}/d" -e "/• {feature 2}/d" \
+              -e "/{TABLE}/r tg-table.txt" -e "/{TABLE}/d" \
               "$GITHUB_WORKSPACE/builder/docs/TELEGRAM_RELEASE.md" > telegram-post.txt
+          EXTRA="$GITHUB_WORKSPACE/builder/docs/RELEASE_NOTES_EXTRA.txt"
           if [ -s "$EXTRA" ]; then
             python3 "$GITHUB_WORKSPACE/builder/tools/telegram-notes.py" "$EXTRA" telegram-post.txt
           fi

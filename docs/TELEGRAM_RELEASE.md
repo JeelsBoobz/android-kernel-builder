@@ -1,17 +1,15 @@
 <b>⚡ {KERNEL NAME} — {VERSION}</b>
-
-<b>✨ Highlights</b>
-• {change 1}
-• {change 2}
+• {HEADLINE}
 
 <b>📦 Builds</b>
 <pre>
 {one file per line}
 </pre>
 
-<b>⚙️ Features</b>
-• {feature 1}
-• {feature 2}
+<b>⚙️ Config</b>
+<pre>
+{TABLE}
+</pre>
 
 <b>📲 Flash</b>
 • {how to flash}
