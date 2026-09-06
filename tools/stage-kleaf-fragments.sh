@@ -67,6 +67,8 @@ for inp in ${FRAG_INPUTS[@]+"${FRAG_INPUTS[@]}"}; do
 done
 
 # Drop excluded names (full name, minus .config, or core minus last -segment).
+# WARNING: core matching is coarse -- e.g. core "usb" matches BOTH
+# usb-serial.config and usb-rndis.config. Prefer full names in EXCLUDE.
 if [ -n "$EXCLUDE" ]; then
   excl=${EXCLUDE//,/ }; keep=""
   # shellcheck disable=SC2086

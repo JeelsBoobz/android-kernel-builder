@@ -292,7 +292,7 @@ jobs:
         if: needs.resolve.outputs.susfs != 'false'
         run: |
           cd kernel
-          bash "$GITHUB_WORKSPACE/builder/tools/verify-susfs.sh"
+          bash "$GITHUB_WORKSPACE/builder/tools/verify-susfs.sh" --kind "${{ matrix.build_kind }}"
 
       - name: Collect outputs
         run: |
@@ -311,10 +311,7 @@ jobs:
             [ -f "$OUT/$cand" ] && IMG="$OUT/$cand" && break
           done
           [ -n "$IMG" ] || { echo "no kernel image for AK3 zip; skipping"; exit 0; }
-          KCONFIG=""
-          for kc in $(find out bazel-bin/common -maxdepth 6 -name ".config" 2>/dev/null | head -n 5); do
-            [ -f "$kc" ] && KCONFIG="$kc" && break
-          done
+          KCONFIG=$(bash "$GITHUB_WORKSPACE/builder/tools/pick-config.sh" --kind "${{ matrix.build_kind }}" 2>/dev/null || true)
           [ -n "$KCONFIG" ] && echo "ak3 kconfig: $KCONFIG" || echo "ak3 kconfig: none found, skipping"
           IKCONFIG=""
           if [ -x common/scripts/extract-ikconfig ]; then

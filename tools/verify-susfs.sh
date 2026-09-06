@@ -7,6 +7,10 @@
 # suppression (gated tree) expects it absent. Fails the build on mismatch.
 set -euo pipefail
 
+KIND=""
+[ "${1:-}" = "--kind" ] && KIND="${2:-}"
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
 FRAG=".fragments/susfs.config"
 if [ ! -f "$FRAG" ]; then
   echo "verify-susfs: no susfs fragment (plain KSU ref); nothing to check"
@@ -16,10 +20,7 @@ fi
 if grep -q "^CONFIG_KSU_SUSFS=y" "$FRAG"; then EXPECT=on; else EXPECT=off; fi
 echo "verify-susfs: expected SuSFS=$EXPECT"
 
-CFG=""
-for f in $(find out bazel-bin/common -maxdepth 6 -name ".config" 2>/dev/null | head -n 5); do
-  [ -f "$f" ] && CFG="$f" && break
-done
+CFG=$("$HERE/pick-config.sh" --kind "$KIND" 2>/dev/null || true)
 [ -n "$CFG" ] || { echo "verify-susfs: no .config found" >&2; exit 2; }
 echo "verify-susfs: using $CFG"
 

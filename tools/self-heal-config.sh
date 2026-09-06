@@ -51,18 +51,6 @@ fi
 if [ -n "${LLVM_IAS:-}" ]; then
     MAKE_ARCH_ARGS+=(LLVM_IAS="${LLVM_IAS}")
 fi
-# Bare-metal-only toolchains (CLANG_URL) cannot build host tools: build.sh's
-# LLVM=1 path forces HOSTCC=clang and the generated host binaries SIGSEGV.
-# self-heal-config runs its own `make` (kconfig/conf, fixdep, ...), so mirror
-# the HOSTCC/HOSTCXX override build-kernel.sh passes to build.sh. The values
-# come from build.config.cloudfox (CLOUDFOX_HOST_*), which build.sh does not
-# clobber, unlike HOSTCC itself.
-if [ -n "${CLOUDFOX_HOST_CC:-}" ]; then
-    MAKE_ARCH_ARGS+=(HOSTCC="${CLOUDFOX_HOST_CC}")
-fi
-if [ -n "${CLOUDFOX_HOST_CXX:-}" ]; then
-    MAKE_ARCH_ARGS+=(HOSTCXX="${CLOUDFOX_HOST_CXX}")
-fi
 MAKE_ARCH_ARGS+=(ARCH="${ARCH}")
 
 run_make() { # <dir> <target>

@@ -230,16 +230,19 @@ while IFS= read -r line; do
   fi
   git add -A
   git diff --cached --check || { log "FAIL: whitespace errors"; exit 1; }
-  # Size floor per conflicted file: >=70% of max(LTS,stable) lines.
-  while IFS= read -r f; do
+  # Size floor: conflicted files vs max(LTS,stable); fixup files (whole-file
+  # replacement, bypasses the conflicted list) vs max(LTS tip, manual source).
+  while IFS= read -r line; do
+    f="${line%% *}"; mode="${line#* }"; [ "$line" = "$f" ] && mode=""
     [ -z "$f" ] && continue
     L=$(git cat-file -p "$LTS_TIP:$f" 2>/dev/null | wc -l || true); S=$(git cat-file -p "$STABLE_TIP:$f" 2>/dev/null | wc -l || true)
+    if [ "$mode" = "fixup" ]; then S=$(wc -l < "$MANDIR/$f" || true); fi
     R=$(git cat-file -p ":$f" 2>/dev/null | wc -l || true)
     M=$(( L > S ? L : S ))
     if [ "$M" -gt 0 ] && [ "$(( R * 10 ))" -lt "$(( M * 7 ))" ]; then
       log "FAIL: $f size collapse $R vs LTS $L / stable $S (<70%)"; exit 1
     fi
-  done < /tmp/mwr_conflicted.txt
+  done < <(cat /tmp/mwr_conflicted.txt; for f in $FIXUP_APPLIED; do echo "$f fixup"; done)
   # ABI tripwire: stable never touches android/abi_*.
   if git diff --cached --name-only | grep -q "^android/abi_"; then
     log "FAIL: android/abi_* changed"; exit 1
