@@ -31,8 +31,11 @@ jobs:
           PIN_FILE=.ci/group-pin.txt
           RECORDED=$(cat "$PIN_FILE" 2>/dev/null || echo "")
           export RECORDED
-          ACTION=$(python3 tools/telegram-unpin.py)
+          # 2>&1 + || guard: under bash -e a bare $(...) discards the
+          # script's own diagnostics on failure (that hid a bug once).
+          ACTION=$(python3 tools/telegram-unpin.py 2>&1) || PYRC=$?
           echo "$ACTION"
+          [ "${PYRC:-0}" -eq 0 ] || exit "$PYRC"
           if [ -f /tmp/newpin ]; then
             NEW=$(cat /tmp/newpin); OLD=$(cat "$PIN_FILE" 2>/dev/null || echo "")
             if [ "$NEW" != "$OLD" ]; then
