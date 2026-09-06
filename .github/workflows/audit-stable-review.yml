@@ -16,6 +16,10 @@ on:
         description: "Push PROMOTE verdicts to -stable refs (default dry-run)"
         type: boolean
         default: false
+      supervisor_model:
+        description: "OpenRouter model for audit AI confirm (empty = :free default)"
+        required: false
+        default: "minimax/minimax-m3:free"
 
 concurrency:
   group: audit-stable-review
@@ -23,6 +27,9 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  DEFAULT_AI_MODEL: minimax/minimax-m3:free
 
 jobs:
   audit:
@@ -55,10 +62,16 @@ jobs:
       LTS: ${{ matrix.lts }}
       STABLE: ${{ matrix.stable }}
       PROMOTE: ${{ inputs.promote }}
+      SUPERVISOR_MODEL: ${{ inputs.supervisor_model }}
     steps:
+      - name: Checkout builder (audit tools)
+        uses: actions/checkout@v4
+        with:
+          path: builder
       - name: Audit review commit, optionally promote
         env:
           DEST_TOKEN: ${{ secrets.KERNEL_MIRROR_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           set -euo pipefail
           OUT="${LTS/-lts/-stable}"
@@ -151,6 +164,32 @@ jobs:
             case "$f" in drivers/android/*) hold "$f: Android-surface file needs human review";; esac
           done
 
+          if [ -z "$VERDICT" ]; then
+            # Static gates passed — AI confirm, resolution-scoped, fail closed.
+            SUP_EFF="${SUPERVISOR_MODEL:-$DEFAULT_AI_MODEL}"
+            git diff "${PARENTS[0]}" "$REV" --stat > /tmp/adiff.txt || true
+            git diff "${PARENTS[0]}" "$REV" >> /tmp/adiff.txt || true
+            { echo "conflicted files + line counts (LTS / stable / review):";
+              for f in "${CFILES[@]}"; do
+                [ -n "$f" ] || continue
+                L=$(git cat-file -p "${PARENTS[0]}:$f" 2>/dev/null | wc -l)
+                S=$(git cat-file -p "refs/remotes/stable/$STABLE:$f" 2>/dev/null | wc -l)
+                R=$(git cat-file -p "$REV:$f" 2>/dev/null | wc -l)
+                echo "  $f LTS=$L stable=$S review=$R";
+              done; } > /tmp/anote.txt
+            if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+              hold "no OPENROUTER_API_KEY for AI confirm (fail closed)"
+            else
+              set +e
+              AI_MODEL="$SUP_EFF" python3 "$GITHUB_WORKSPACE/builder/tools/supervise.py" \
+                --audit --diff /tmp/adiff.txt --note "$(cat /tmp/anote.txt)" \
+                --lts "$LTS" --stable "$STABLE" | tee /tmp/averdict.txt
+              SUP=$?
+              set -e
+              echo "--- AI confirm (exit $SUP) ---"; cat /tmp/averdict.txt
+              if [ "$SUP" -ne 0 ]; then hold "AI confirm FLAG/error (exit $SUP)"; fi
+            fi
+          fi
           if [ -z "$VERDICT" ]; then VERDICT="PROMOTE"; fi
           {
             echo "## $OUT: $VERDICT"
