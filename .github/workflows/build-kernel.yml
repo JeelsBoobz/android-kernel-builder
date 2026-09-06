@@ -386,6 +386,20 @@ jobs:
           path: susfs-version-${{ steps.rev.outputs.rev }}.txt
           if-no-files-found: ignore
 
+      - name: Stage BBRv3 version
+        if: needs.resolve.outputs.bbrv3 != 'false'
+        run: |
+          [ -f kernel/.bbrv3-version ] \
+            && cp kernel/.bbrv3-version "bbrv3-version-${{ steps.rev.outputs.rev }}.txt" \
+            || echo "bbrv3 gated here (no proven backport); upload will skip"
+      - name: Upload BBRv3 version
+        if: needs.resolve.outputs.bbrv3 != 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bbrv3-version-${{ steps.rev.outputs.rev }}
+          path: bbrv3-version-${{ steps.rev.outputs.rev }}.txt
+          if-no-files-found: ignore
+
   release:
     needs: [resolve, build]
     if: ${{ !cancelled() && inputs.release }}
@@ -411,6 +425,13 @@ jobs:
           path: susfsversions
           merge-multiple: true
         continue-on-error: true
+      - name: Fetch BBRv3 versions
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bbrv3-version-*
+          path: bbrv3versions
+          merge-multiple: true
+        continue-on-error: true
       - name: Checkout builder
         uses: actions/checkout@v4
         with:
@@ -425,15 +446,34 @@ jobs:
           [ "${#files[@]}" -gt 0 ] || { echo "no AnyKernel3 zips; skipping release"; exit 0; }
           TAG="kernel-build-r${{ github.run_number }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | tr '\n' ' ')
+          FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments" && ls common/*.config 2>/dev/null | sed 's|common/||; s/\.config$//'; ls android*/*.config 2>/dev/null | sed 's|/|/|; s/\.config$//' | awk -F/ '{print $1":"$2}' | paste -sd' ' -)
+          BBRV3_DISPLAY="false"; BBRV3_TG="false"
+          if [ "${{ needs.resolve.outputs.bbrv3 }}" != "false" ]; then
+            BBRV3_ON=0; BBRV3_OFF=""
+            for vf in ksuversions/ksu-version-*.txt; do
+              [ -f "$vf" ] || continue
+              b=$(basename "$vf" .txt); b=${b#ksu-version-}
+              short=${b%-lts}
+              if [ -f "bbrv3versions/bbrv3-version-$b.txt" ]; then
+                BBRV3_ON=$((BBRV3_ON + 1))
+              else
+                BBRV3_OFF="${BBRV3_OFF:+$BBRV3_OFF, }$short"
+              fi
+            done
+            if [ "$BBRV3_ON" -gt 0 ]; then
+              BBRV3_DISPLAY="true ($BBRV3_ON trees)"
+              BBRV3_TG="true ($BBRV3_ON trees)"
+              [ -n "$BBRV3_OFF" ] && BBRV3_DISPLAY="$BBRV3_DISPLAY; skipped: $BBRV3_OFF" && BBRV3_TG="$BBRV3_TG; skipped: $BBRV3_OFF"
+            fi
+          fi
           KSU_DISPLAY="false"
           if [ "${{ needs.resolve.outputs.ksu }}" != "false" ]; then
-            KSU_DISPLAY="true (ref: per-branch, see variants/${{ inputs.variant }}.json)"
+            KSU_DISPLAY="true"
             KSU_FIRST=""; KSU_OUT=""
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue
               read -r tag sha ref vcode < "$vf"
-              if [ -z "$ref" ] || [ "$ref" = "$tag" ]; then d="$tag ($vcode)"; else d="$tag $ref@$sha ($vcode)"; fi
+              d="$tag ($vcode)"
               b=$(basename "$vf" .txt); b=${b#ksu-version-}
               if [ -z "$KSU_FIRST" ]; then KSU_FIRST="$d"; KSU_OUT="$d";
               elif [ "$d" != "$KSU_FIRST" ]; then KSU_OUT="$KSU_OUT; $b: $d"; fi
@@ -472,10 +512,9 @@ jobs:
               fi
             done
             if [ -n "$SUSFS_ON" ]; then
-              SUSFS_DISPLAY="true: $SUSFS_ON"
+              SUSFS_DISPLAY="true ($SUSFS_N trees)"
               [ -n "$SUSFS_OFF" ] && SUSFS_DISPLAY="$SUSFS_DISPLAY; off: $SUSFS_OFF"
-              SUSFS_TG="true ($SUSFS_N trees)"
-              [ -n "$SUSFS_OFF" ] && SUSFS_TG="$SUSFS_TG; off: $SUSFS_OFF"
+              SUSFS_TG="$SUSFS_DISPLAY"
             fi
           fi
           {
@@ -491,10 +530,12 @@ jobs:
             echo "| Variant | \`variants/${{ inputs.variant }}.json\` |"
             echo "| KernelSU-Next | \`$KSU_DISPLAY\` |"
             echo "| SuSFS (experimental) | \`$SUSFS_DISPLAY\` |"
+            echo "| BBRv3 (dormant) | \`$BBRV3_DISPLAY\` |"
             echo "| NoMount | \`${{ needs.resolve.outputs.nomount }}\` |"
             echo "| Partition Guard | \`${{ needs.resolve.outputs.guard }}\` |"
-            echo "| Extra fragments | \`${{ needs.resolve.outputs.fragments }}\` |"
-            echo "| Active fragments | $FRAGS |"
+            echo "| Fragments | $FRAGS |"
+            echo ""
+            echo "Each zip also carries \`kernel.config\` (resolved) + \`ikconfig\` (extracted from the image) for offline inspection."
             echo ""
             echo "### 📲 Flash"
             echo "- AnyKernel3 zip for **your branch only**, flash in recovery or KernelSU manager"
@@ -517,6 +558,7 @@ jobs:
             [ "${{ needs.resolve.outputs.ksu }}" = "true" ] && echo "• KernelSU-Next: $KSU_DISPLAY"
             [ "${{ needs.resolve.outputs.ksu }}" = "true" ] && echo "• Manager APK ($MANAGER_PIN): $MANAGER_URL"
             [ "${{ needs.resolve.outputs.susfs }}" = "true" ] && echo "• SuSFS: $SUSFS_TG"
+            [ "${{ needs.resolve.outputs.bbrv3 }}" = "true" ] && echo "• BBRv3: $BBRV3_TG"
             [ "${{ needs.resolve.outputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
             [ "${{ needs.resolve.outputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
             echo "• Fragments: $FRAGS"

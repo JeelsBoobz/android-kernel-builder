@@ -3,7 +3,7 @@
 # Convention (keeps both surfaces native): plain text, one note per line,
 # start bullets with "• ". Lines starting with # are comments (stripped).
 # Telegram is HTML-escaped automatically, so write RAW text (no <b> etc.).
-• Experimental: SuSFS root hiding is newly integrated and not yet proven on device
-• Kernel base tested on android12-5.10; other trees compile green but await device testing
-• Per-tree SuSFS status (including source SHAs) is in the build config table below — trees without it ship KernelSU-Next + NoMount + Guard only
+• SuSFS proven on android12-5.10 (boots, hides root); other trees compile green but await device testing
+• BBRv3 is dormant until selected per-connection (default stays CUBIC)
+• Each zip carries kernel.config (resolved) + ikconfig (extracted from the image)
 • This release is built from -lts tips on all trees (no -stable content)
