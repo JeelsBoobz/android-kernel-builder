@@ -1,7 +1,8 @@
 # android-kernel-builder
 
 Builds GKI kernels for **8 branches** (5.10 → 6.18) from mirrored AOSP
-source, with KernelSU-Next, NoMount, Partition Guard, and a portable
+source, with KernelSU-Next, SuSFS (experimental), NoMount,
+Partition Guard, and a portable
 Kconfig fragment system. Flashable AnyKernel3 zips land on
 [Releases](../../releases); raw outputs stay as run artifacts.
 
@@ -19,15 +20,17 @@ Kconfig fragment system. Flashable AnyKernel3 zips land on
 - `anykernel-<rev>.zip` — self-contained flashable zip (vendored AK3 +
   custom `anykernel.sh`), published to **Releases**
 - KernelSU-Next baked in (`ksu=true`), NoMount built-in (`nomount=true`),
-  Partition Guard active (`guard=true`) — all toggleable per dispatch
+  Partition Guard active (`guard=true`), SuSFS hiding (`susfs=true`,
+  experimental, default off) — all toggleable per dispatch
 
-## Integrations (all opt-out, all pinned)
+## Integrations (toggleable, pinned)
 
 | Input | Default | Source | Notes |
 |---|---|---|---|
 | `ksu` / `ksu_ref` | true / latest tag | `pershoot/KernelSU-Next` | Full clone (`.git` needed for version bake); values baked, upstream warnings untouched |
 | `nomount` / `nomount_ref` | true / `dev` | `maxsteeel/nomount` | Built-in `CONFIG_NOMOUNT=y` |
 | `guard` / `guard_ref` | true / `main` | `sysretq0/android-partition-guard` | Default-y LSM; installer presence is the opt-in |
+| `susfs` / `susfs_ref` | false / branch tip | `simonpunk/susfs4ksu` (per-version branch) | Experimental opt-in; needs `ksu_ref` `dev-susfs`; 6.18 clean-skips (no upstream branch) |
 | `extra_config` | — | inline `CONFIG_X=y,...` | This run only, no commit |
 | `fragments` | true | repo fragment dirs on/off | `false` = stock baseline (combine with feature toggles off; `extra_config` still applies) |
 
@@ -55,7 +58,7 @@ deliberately excluded (its ABI list lacks the `zpool` exports — strict
   `NETFS_SUPPORT` on 6.12) are handled instead by
   `tools/drop-stale-module-outs.sh` at build time (method: WildKernels)
   so the feature keeps working.
-- Generated `.fragments/` (KSU/NoMount/guard) ride the same pipeline
+- Generated `.fragments/` (KSU/SuSFS/NoMount/guard) ride the same pipeline
 
 Era handling: `build.sh` trees bake fragments into the defconfig +
 self-heal `POST_DEFCONFIG_CMDS`; Kleaf trees ride a single
@@ -99,8 +102,9 @@ Secrets: `KERNEL_MIRROR_TOKEN` (push to the mirror), `OPENROUTER_API_KEY`
   (ported here for all trees, not just legacy `build.sh`).
 - [showdo/Baseband Guard](https://github.com/vc-teahouse/Baseband-Guard) —
   main inspiration for Partition Guard (hook points, installer shape).
-- `pershoot/KernelSU-Next`, `maxsteeel/nomount` — upstream projects,
-  integrated unmodified (values baked around them, warnings preserved).
+- `pershoot/KernelSU-Next`, `maxsteeel/nomount`, `simonpunk/susfs4ksu` —
+  upstream projects, integrated unmodified (values baked around them,
+  warnings preserved).
 
 *Built with assistance from muse-spark-1.3.*
 
