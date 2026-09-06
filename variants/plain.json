@@ -91,9 +91,9 @@
     }
   ],
   "pins": {
-    "ksu": "",
+    "ksu": "2482c56952ea36ee13809058c279a2dce075113f",
     "susfs": "",
-    "nomount": "",
-    "guard": ""
+    "nomount": "3e65dbc04e3deaf79073502940cdef8aa4c3b62c",
+    "guard": "c12b72944345ad883a36a6e3b95538fbfd399f64"
   }
 }
