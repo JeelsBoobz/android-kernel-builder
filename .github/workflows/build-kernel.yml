@@ -633,7 +633,7 @@ jobs:
           # Telegram post: fill docs/TELEGRAM_RELEASE.md from this build.
           # Release-only (this step), uploaded as an asset + printed for copy-paste.
           HL=$(git -C "$GITHUB_WORKSPACE/builder" log -1 --format=%s 2>/dev/null || echo "New build")
-          HLESC=$(printf '%s' "$HL" | sed 's/[&|\\/]/\\&/g')
+          HLESC=$(printf '%s' "$HL" | python3 -c 'import html,sys; print(html.escape(sys.stdin.read()), end="")' | sed 's/[&|\\/]/\\&/g')
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
           {
             [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next: $KSU_DISPLAY"

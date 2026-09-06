@@ -17,6 +17,6 @@ text = open(post).read()
 if lines:
     block = "<b>📌 Notes</b>\n" + "\n".join(html.escape(l) for l in lines) + "\n\n"
     marker = "<b>⬇️ Download</b>"
-    text = text.replace(marker, block + marker) if marker in post else post + "\n" + block
+    text = text.replace(marker, block + marker) if marker in text else text + "\n" + block
     open(post, "w").write(text)
 print("telegram notes:", len(lines))
