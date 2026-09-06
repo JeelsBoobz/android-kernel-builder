@@ -57,6 +57,10 @@ on:
         description: "Post the filled release template to Telegram channel (needs TELEGRAM_* secrets)"
         type: boolean
         default: true
+      forward:
+        description: "Forward the announcement to TELEGRAM_FORWARD_CHAT_ID targets (default off)"
+        type: boolean
+        default: false
   # Every 12h, alternating: 05:00 UTC builds WITH SuSFS, 17:00 UTC WITHOUT
   # (stateless alternation -- see the Resolve effective inputs steps; a
   # missed run never desyncs a state file). Both always track -lts.
@@ -647,6 +651,7 @@ jobs:
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
           TG_FWD: ${{ secrets.TELEGRAM_FORWARD_CHAT_ID }}
           TG_TOPIC: ${{ secrets.TELEGRAM_FORWARD_TOPIC_ID }}
+          FWD_ON: ${{ inputs.forward }}
         run: |
           [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ] || { echo "telegram secrets unset; skipping"; exit 0; }
           [ -f telegram-post.txt ] || { echo "no telegram post; skipping"; exit 0; }
@@ -661,7 +666,7 @@ jobs:
           # entry carries no inline :topic). Bot must be a member of each
           # target (admin only if the topic restricts posting to admins).
           MID=$(printf '%s' "$RESP" | grep -o '"message_id":[0-9]*' | head -1 | cut -d: -f2)
-          if [ -n "${TG_FWD:-}" ] && [ -n "$MID" ]; then
+          if [ "${FWD_ON:-false}" = "true" ] && [ -n "${TG_FWD:-}" ] && [ -n "$MID" ]; then
             FWD_FAIL=""
             NSPEC=$(printf '%s' "$TG_FWD" | awk -F, '{print NF}')
             OLDIFS=$IFS; IFS=,
