@@ -38,10 +38,6 @@ jobs:
       guard: ${{ steps.v.outputs.guard }}
       susfs: ${{ steps.v.outputs.susfs }}
       bbrv3: ${{ steps.v.outputs.bbrv3 }}
-      pin_ksu: ${{ steps.v.outputs.pin_ksu }}
-      pin_susfs: ${{ steps.v.outputs.pin_susfs }}
-      pin_nomount: ${{ steps.v.outputs.pin_nomount }}
-      pin_guard: ${{ steps.v.outputs.pin_guard }}
       fragments: ${{ steps.v.outputs.fragments }}
       extra_config: ${{ steps.v.outputs.extra_config }}
       branch: ${{ steps.v.outputs.branch }}
@@ -63,8 +59,9 @@ jobs:
           echo "guard=$(get guard)" >>"$GITHUB_OUTPUT"
           echo "susfs=$(get susfs)" >>"$GITHUB_OUTPUT"
           echo "bbrv3=$(get bbrv3)" >>"$GITHUB_OUTPUT"
-          for p in ksu susfs nomount guard; do
-            echo "pin_$p=$(jq -r ".pins[\"$p\"] // \"\"" <<<"$J")" >>"$GITHUB_OUTPUT"
+          for c in nomount_ref guard_ref; do
+            n=$(jq -r ".branches[].$c // \"\"" <<<"$J" | sort -u | grep -c . || true)
+            [ "$n" -le 1 ] || { echo "parity: $c differs across branches"; exit 2; }
           done
           echo "fragments=$(get fragments)" >>"$GITHUB_OUTPUT"
           echo "extra_config=$(get extra_config)" >>"$GITHUB_OUTPUT"
@@ -142,18 +139,14 @@ jobs:
         if: needs.resolve.outputs.ksu != 'false'
         run: |
           cd kernel
-          REF="${{ needs.resolve.outputs.pin_ksu }}"
-          [ -n "$REF" ] || REF="${{ matrix.ksu_ref }}"
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-kernelsu-next.sh" --ref "$REF"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-kernelsu-next.sh" --ref "${{ matrix.ksu_ref }}"
 
       - name: Integrate SuSFS
         if: needs.resolve.outputs.susfs != 'false'
         run: |
           cd kernel
-          REF="${{ needs.resolve.outputs.pin_susfs }}"
-          [ -n "$REF" ] || REF="${{ matrix.susfs_ref }}"
           bash "$GITHUB_WORKSPACE/builder/tools/setup-susfs.sh" \
-            --our-branch "${{ matrix.our_branch }}" --ref "$REF"
+            --our-branch "${{ matrix.our_branch }}" --ref "${{ matrix.susfs_ref }}"
 
       - name: Integrate BBRv3
         if: needs.resolve.outputs.bbrv3 != 'false'
@@ -167,17 +160,13 @@ jobs:
         if: needs.resolve.outputs.nomount != 'false'
         run: |
           cd kernel
-          REF="${{ needs.resolve.outputs.pin_nomount }}"
-          [ -n "$REF" ] || REF="${{ matrix.nomount_ref }}"
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-nomount.sh" --ref "$REF"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-nomount.sh" --ref "${{ matrix.nomount_ref }}"
 
       - name: Integrate Partition Guard
         if: needs.resolve.outputs.guard != 'false'
         run: |
           cd kernel
-          REF="${{ needs.resolve.outputs.pin_guard }}"
-          [ -n "$REF" ] || REF="${{ matrix.guard_ref }}"
-          bash "$GITHUB_WORKSPACE/builder/tools/setup-partition-guard.sh" --ref "$REF"
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-partition-guard.sh" --ref "${{ matrix.guard_ref }}"
 
       - name: Apply config fragments (build.sh era)
         if: matrix.build_kind == 'build_sh' && (needs.resolve.outputs.fragments != 'false' || needs.resolve.outputs.extra_config != '')
@@ -427,7 +416,6 @@ jobs:
           KSU_DISPLAY="false"
           if [ "${{ needs.resolve.outputs.ksu }}" != "false" ]; then
             KSU_DISPLAY="true (ref: per-branch, see variants/${{ inputs.variant }}.json)"
-            [ -n "${{ needs.resolve.outputs.pin_ksu }}" ] && KSU_DISPLAY="true (pinned: ${{ needs.resolve.outputs.pin_ksu }})"
             KSU_FIRST=""; KSU_OUT=""
             for vf in ksuversions/ksu-version-*.txt; do
               [ -f "$vf" ] || continue

@@ -16,7 +16,9 @@ off). `release` and Telegram are never in the JSON: every release posts
 to Telegram, always. `detect-upstream` dispatches `susfs` + `release=true`
 on new upstream tips.
 
-Pins: `pins` forces one ref for a component on every branch (parity —
-one SHA in the version table instead of a mix). Empty = per-branch
-`ksu_ref`/`susfs_ref`/`nomount_ref`/`guard_ref` win; empty there too =
-the setup script default (tip / dev / main).
+Pins: none — parity lives in the records. `nomount_ref`/`guard_ref`
+must be identical on all 8 branches (single upstream repos; the resolve
+job fails otherwise). `ksu_ref` is the pinned SHA everywhere except
+6.6/6.18, which stay on plain-dev SHA (proven combo, no SuSFS hooks
+needed). `susfs_ref` empty = per-version branch tip (one SHA can't span
+5.10→6.12 branches).
