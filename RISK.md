@@ -15,17 +15,19 @@ revisited whenever a build proves otherwise.
 | 4 | cake | LOW | Dep-less qdisc, tc opt-in only |
 | 5 | cifs (+XATTR, POSIX) | LOW | In-tree SMB client, mount-gated; 6.12 module-list handled at build time |
 | 6 | ipset family | LOW | Mature netfilter, no auto-path, no boot-insmod (verified zero defaults) |
-| 7 | usb-mass-storage (CONFIGFS gadget) | LOW | Gadget-side, opt-in |
+| 7 | usb-mass-storage (CONFIGFS gadget) | RETIRED | Sole symbol stock =y everywhere — fragment was a proven no-op, deleted |
 | 8 | usb-serial (5.10 only, =y) | LOW | build.sh era has no module-outs check; 5.15+ stays =m (Kleaf staging) |
-| 9 | zswap family (per-tree, not 13-5.15/6.18) | MEDIUM | Core-mm adjacent but mature code; KMI-gated per tree, proven green 6/8 |
+| 9 | zswap (6.6 only) | MEDIUM | Core-mm adjacent but mature code; KMI/module-outs block all other trees, non-6.6 copies dropped |
 
-## Parked (`.bak`, audited, activate after the reintroduction queue)
+## Dropped (queue stopped here; files deleted, rationale kept)
 
-| # | Fragment | Grade | Why |
-|---|---|---|---|
-| P1 | usb-rndis (RNDIS gadget, common) | LOW | Bool, deps effective (ECM=y proves framework); selects default-n, module-lists clean 5.10-era; Kleaf staging re-verified at activation |
-| P2 | ntfs3 per-branch (5.15+) | LOW | Tristate, selects NLS only, default n; per-branch because 5.10 lacks fs/ntfs3; Kleaf staging re-verified at activation |
-| P3 | ntsync 6.18-only | LOW | In-tree dep-less tristate; 6.12 BROKEN-gated (skipped), ≤6.6 absent (backport rejected) |
+| # | Fragment | Why dropped |
+|---|---|---|
+| P1 | usb-rndis | ACTIVATED (live, green across the matrix) — no longer parked |
+| P2 | ntfs3 per-branch (5.15+) | ACTIVATED (live, pending green run) — no longer parked |
+| P3 | ntsync 6.18-only | Never attempted; queue stopped before it |
+| — | zswap/zbud/frontswap (non-6.6) | KMI allowlist (5.10/5.15/6.1) + module-outs (6.12) block them per-tree; 6.6 copy live |
+| — | mtk-ufs (5.10) | Unproven experiment; stock boots via vendor UFS modules, premise never validated |
 
 ## Out-of-tree sources
 
