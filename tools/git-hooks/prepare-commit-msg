@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# auto-signoff prepare-commit-msg hook (box-wide via core.hooksPath).
+# 1. Chain any repo-local prepare-commit-msg first (never shadow it);
+#    propagate its failure (a failing repo hook still blocks the commit).
+# 2. Append Signed-off-by for the committer ident unless already present
+#    (git interpret-trailers: duplicate-safe, trailer-position aware, puts
+#    the trailer after e.g. Gerrit's Change-Id instead of clobbering it).
+# Never fails the commit itself (except when the chained repo hook fails).
+set -u
+MSG_FILE="${1:-}"
+# 1. repo-local hook (found via absolute git dir; hooksPath shadows
+#    .git/hooks, so delegate explicitly). Skip self-recursion.
+GITDIR_ABS="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
+if [ -n "$GITDIR_ABS" ] && [ -x "$GITDIR_ABS/hooks/prepare-commit-msg" ]; then
+  SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+  OTHER="$(readlink -f "$GITDIR_ABS/hooks/prepare-commit-msg" 2>/dev/null || echo "$GITDIR_ABS/hooks/prepare-commit-msg")"
+  if [ "$SELF" != "$OTHER" ]; then
+    "$OTHER" "$@" || exit "$?"
+  fi
+fi
+# 2. signoff from the committer ident (respects repo-local user.* / -c).
+IDENT="$(git var GIT_COMMITTER_IDENT 2>/dev/null || true)"
+NAME="$(printf '%s' "$IDENT" | sed -n 's/^\(.*\) <.*$/\1/p')"
+EMAIL="$(printf '%s' "$IDENT" | sed -n 's/^.* <\([^>]*\)>.*$/\1/p')"
+if [ -n "$MSG_FILE" ] && [ -f "$MSG_FILE" ] && [ -n "$NAME" ] && [ -n "$EMAIL" ]; then
+  git interpret-trailers --in-place --where end --if-exists doNothing \
+    --trailer "Signed-off-by: $NAME <$EMAIL>" "$MSG_FILE" 2>/dev/null || true
+fi
+exit 0
