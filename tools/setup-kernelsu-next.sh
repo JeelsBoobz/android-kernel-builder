@@ -16,7 +16,7 @@
 # never be enabled without the driver source present).
 set -euo pipefail
 
-REPO="pershoot/KernelSU-Next"; REF=""
+REPO="KernelSU-Next/KernelSU-Next"; REF=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo) REPO="$2"; shift 2 ;;
