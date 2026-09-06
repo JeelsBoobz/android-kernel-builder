@@ -28,6 +28,8 @@ Review the merge diff below. Flag ANY of:
 - Kconfig defaults flipping, new hard dependencies
 - changes touching android/abi_* (GKI/KMI surface) or drivers/android/binder*
 - suspicious conflict resolutions (duplicated logic, dropped hunks, leftover debugging)
+- any file losing >50% of its lines vs its parent side (truncated AI stub —
+  mass deletions are never a correct conflict resolution, FLAG immediately)
 
 Diff (may be truncated):
 ---

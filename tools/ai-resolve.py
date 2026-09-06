@@ -22,6 +22,7 @@ Env:
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 import json
@@ -53,6 +54,8 @@ Rules:
 - Keep includes, Kconfig dependencies and function signatures compiling. Do not rename symbols.
 - If both sides add code in the same place, keep BOTH, in logical order (ours first, then theirs), deduplicating identical lines.
 - Never emit conflict markers (<<<<<<<, =======, >>>>>>>).
+- Return the ENTIRE file, never an excerpt. Never truncate, never emit
+  placeholders such as ...[truncated]... or comments describing omitted code.
 
 --- BASE (:1:) ---
 {base}
@@ -138,11 +141,18 @@ def main():
         print(f"{path}: no markers, nothing to do")
         return 0
 
+    # Full-file context only: truncated input guarantees truncated output
+    # (observed: 420-line binder stub from a 7254-line input). Fail closed
+    # instead of truncating and hoping.
+    PROMPT_CAP = 100000
     prompt = PROMPT_TMPL.format(
         path=path, ours_msg=args.ours_msg, theirs_msg=args.theirs_msg,
-        base=acctrim(base), ours=acctrim(ours),
-        theirs=acctrim(theirs), marked=acctrim(marked, 12000),
+        base=base, ours=ours, theirs=theirs, marked=marked,
     )
+    if len(prompt) > PROMPT_CAP:
+        print(f"::error::{path}: prompt {len(prompt)} chars > cap {PROMPT_CAP} "
+              f"(file too large for reliable AI resolve, needs human)", file=sys.stderr)
+        return 1
     max_in = max(len(base), len(ours), len(theirs), len(marked), 1)
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -157,11 +167,17 @@ def main():
         if not out.strip():
             print(f"{path}: reject: empty output", file=sys.stderr)
             continue
-        if "<<<<<<<" in out or ">>>>>>>" in out:
+        if re.search(r'^(<{7}|={7}|>{7})', out, re.M):
             print(f"{path}: reject: markers remain", file=sys.stderr)
+            continue
+        if "...[truncated]..." in out:
+            print(f"{path}: reject: echoed truncation marker (stub output)", file=sys.stderr)
             continue
         if len(out) > 3 * max_in + 5000:
             print(f"{path}: reject: output suspiciously large ({len(out)} vs in {max_in})", file=sys.stderr)
+            continue
+        if len(out) < 0.7 * max_in:
+            print(f"{path}: reject: output suspiciously small ({len(out)} vs in {max_in})", file=sys.stderr)
             continue
         # looks sane: write back
         with open(path, "w") as f:
