@@ -1,0 +1,41 @@
+# Manual merge resolutions: Merge linux-5.15.y (0996e09) into
+# android13-5.15-lts (e9b8a65) -> android13-5.15-stable.
+# Human-resolved hunk by hunk (three-way base/ours/theirs read in full);
+# "manual" blocks live in merges/manual/android13-5.15-stable/.
+# Format: "<path> = ours|theirs|manual".
+
+# Stable split one check into two with a better message; ours' combined
+# check is the older form of the same validation.
+drivers/hid/hid-logitech-dj.c = theirs
+
+# Stable adds dma_mask_bits=64; Android dropped the max_interrupters clamp
+# from xhci_init (GKI sets it up elsewhere) and its xhci.h lacks the dma
+# field only until the clean-merged header lands it. Keep the dma line,
+# preserve Android's clamp deletion.
+drivers/usb/host/xhci.c = manual
+
+# Adjacent-line include additions both sides; keep both.
+include/linux/bpf.h = manual
+
+# Stable refactored audit_update_mark + dir/allow_dups; subsumes Android's
+# 0->true bool conversion of the old call.
+kernel/audit_fsnotify.c = theirs
+
+# Independent additions at one spot: stable's BPF storage init + Android's
+# vendor/oem data + trace_android_vh hook. Keep both (stable block first).
+kernel/fork.c = manual
+
+# Android replaced the RCU per-net pmtu lookup with dev_net() + the global
+# floor (self-consistent GKI shape); stable's dst_dev() accessor fix targets
+# the RCU pattern Android removed. Keep Android.
+net/ipv4/route.c = ours
+
+# Both sides deleted one adjacent line each (Android: EBUSY guard, stable:
+# flush call). Union deletes both.
+net/mptcp/protocol.c = manual
+
+# Merged hook signature keeps Android's xattr_name (stable never touched
+# lsm_hook_defs.h entry; in-tree SELinux impl keeps the 6-arg form, merged
+# coherently). Stable's 5-arg open-coded loop would not compile against it;
+# the call_int_hook macro still exists. Keep Android's call.
+security/security.c = ours

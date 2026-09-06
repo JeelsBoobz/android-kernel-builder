@@ -1,0 +1,77 @@
+# Manual merge resolutions: Merge linux-5.15.y (0996e09) into
+# android14-5.15-lts (1131d6cc) -> android14-5.15-stable.
+# Human-resolved hunk by hunk (three-way base/ours/theirs read in full);
+# "manual" blocks live in merges/manual/android14-5.15-stable/.
+# Format: "<path> = ours|theirs|manual".
+
+# Stable rewrote af_alg_sendmsg around msghdr; Android's only delta here was
+# a stylistic !! on ctx->more (bool either way; stable sets it plainly).
+crypto/af_alg.c = theirs
+
+# Stable binder use-after-free fix (pin target_thread via tmp_ref under
+# t->lock). Android's side is just the declarations; the fix's fields exist
+# in the clean-merged header. Take the security fix.
+drivers/android/binder.c = theirs
+
+# null_zone_no: stable's zero-guard + Android's shift-or-div64 non-pow2
+# support combined. Validation: Android dropped the pow2 requirement (real
+# feature); keep that but add the missing zero-guard stable added (else
+# div-by-zero in DIV_ROUND_UP/div64). nr_zones calc: Android restructured
+# it (DIV_ROUND_UP_SECTOR_T at another site); keep Android, drop nothing.
+drivers/block/null_blk/zoned.c = manual
+
+# Same split-checks improvement as the 13-5.15 tree.
+drivers/hid/hid-logitech-dj.c = theirs
+
+# Stable's i2c teardown rework (device_add split, idr placeholder,
+# irq-domain teardown) is absent from android-5.15 wholesale, and the
+# generic i2c_setup_smbus_alert() does not exist here (OF-only variant).
+# Transplanting fragments would corrupt the lifetime flow; keep Android.
+drivers/i2c/i2c-core-base.c = ours
+
+# Enum: stable's ZTYPE rename + Android's GAP entry combined. Helpers:
+# Android's conv/gap/seq trio (gap support used in-tree). rep_max_zones:
+# stable's ALIGN/min_t/arr_len computation (bugfix shape); Android's
+# simplification drops the max_zones cap.
+drivers/scsi/scsi_debug.c = manual
+
+# Stable evolved toward Android's structure (doc comments, const buf,
+# lba-based loop, early return). Keep Android's extras on top: gap helper
+# (used at two sites; shared header keeps ZBC_ZONE_TYPE_GAP), ZBC-violation
+# capacity clamp, div64_rem runt check (non-pow2), alignment-method switch.
+drivers/scsi/sd_zbc.c = manual
+
+# Same as the 13-5.15 tree: dma line, no clamp.
+drivers/usb/host/xhci.c = manual
+
+# Hunk 1: WARN_ON_ONCE + clear_mk_users (stable adopted clear_mk_users;
+# keep Android's ONCE). Hunk 2: byte-identical both sides (stable adopted
+# Android's list-based user claims); take stable side.
+fs/crypto/keyring.c = manual
+
+# Same adjacent-include union as the 13-5.15 tree.
+include/linux/bpf.h = manual
+
+# Android dropped BULK_DEL_SUPPORTED from the enum but no in-tree user
+# exists on either side; keep stable's full set (forward-compatible).
+include/net/rtnetlink.h = theirs
+
+# Same refactor-subsumes-bool as the 13-5.15 tree.
+kernel/audit_fsnotify.c = theirs
+
+# Android's simplification drops the attach_func_proto validation the base
+# and stable both carry (security check for TRACING/LSM/EXT/STRUCT_OPS).
+# Restore stable's version incl. the tail_call_reachable refinement.
+kernel/bpf/core.c = theirs
+
+# Same BPF + vendor union as the 13-5.15 tree.
+kernel/fork.c = manual
+
+# Same dev_net + global-floor shape as the 13-5.15 tree.
+net/ipv4/route.c = ours
+
+# Stable's gate cites CONFIG_COMPAT_FOR_U64_ALIGNMENT, which exists in no
+# android-5.15 Kconfig; adopting it would silently (IS_ENABLED==0) neuter
+# Android's compat translator path. Keep Android's guard.
+net/xfrm/xfrm_state.c = ours
+net/xfrm/xfrm_user.c = ours

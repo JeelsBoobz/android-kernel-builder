@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: promote-stable
+
+# Human-recorded merge promotion: LTS + Greg KH stable -> -stable branches.
+# Unlike merge-stable (AI resolver + supervisor + audit gate), this path is
+# human-resolved: merges/<out>.resolutions + merges/manual/<out>/ blocks,
+# applied by tools/merge-with-resolutions.sh. Static gates only (no AI
+# confirm, no Android-surface rule -- that rule exists to keep AI away from
+# binder; this path IS the human escape hatch).
+#
+# - Dry run (promote=false): merge + gates, push -stable-review, report.
+# - Promote (promote=true): + push -stable (force-with-lease, create lease).
+# New branch = new matrix row + resolutions file + manual dir; the script
+# is reused unchanged.
+#
+# audit-stable-review will report NO-OP once -stable contains both tips.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Which -stable to build (or 'all')"
+        default: "all"
+      promote:
+        description: "Push -stable refs when gates pass (default dry-run to -review)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: promote-stable
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        env:
+          ONLY: ${{ inputs.branch }}
+        run: |
+          ALL='{"include":[
+            {"out":"android13-5.15-stable","lts":"android13-5.15-lts","stable":"linux-5.15.y"},
+            {"out":"android14-5.15-stable","lts":"android14-5.15-lts","stable":"linux-5.15.y"}
+          ]}'
+          if [ -z "$ONLY" ] || [ "$ONLY" = "all" ]; then
+            echo "matrix=$(echo "$ALL" | jq -c .)" >>"$GITHUB_OUTPUT"
+          else
+            echo "matrix=$(echo "$ALL" | jq -c --arg o "$ONLY" '{include: [.include[] | select(.out==$o)]}')" >>"$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
+  promote:
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    env:
+      UPSTREAM_URL: https://android.googlesource.com/kernel/common
+      STABLE_URL: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+      DEST_REPO: sysretq0/android-kernel-common
+    steps:
+      - name: Checkout builder (script + resolutions)
+        uses: actions/checkout@v4
+        with:
+          path: builder
+
+      - name: Merge with recorded resolutions, push review
+        env:
+          DEST_TOKEN: ${{ secrets.KERNEL_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          OUT="${{ matrix.out }}"
+          RESOL="$GITHUB_WORKSPACE/builder/merges/$OUT.resolutions"
+          MANDIR="$GITHUB_WORKSPACE/builder/merges/manual/$OUT"
+          [ -f "$RESOL" ] || { echo "::error::no resolutions file: merges/$OUT.resolutions"; exit 2; }
+          ARGS=(--upstream-url "$UPSTREAM_URL" --stable-url "$STABLE_URL"
+            --dest "https://x-access-token:${DEST_TOKEN}@github.com/${DEST_REPO}.git"
+            --lts "${{ matrix.lts }}" --stable "${{ matrix.stable }}"
+            --out "$OUT" --review "$OUT-review"
+            --resolutions "$RESOL" --manual-dir "$MANDIR"
+            --workdir "work-$OUT")
+          if [ "${{ inputs.promote }}" = "true" ]; then ARGS+=(--promote); fi
+          bash "$GITHUB_WORKSPACE/builder/tools/merge-with-resolutions.sh" "${ARGS[@]}" | tee /tmp/mwr.log
+          {
+            echo "## $OUT: merged $(grep -o 'RESULT_SHA=[0-9a-f]*' /tmp/mwr.log || true)"
+            echo "promote=${{ inputs.promote }}"
+            echo "resolutions: merges/$OUT.resolutions + merges/manual/$OUT/"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo done
