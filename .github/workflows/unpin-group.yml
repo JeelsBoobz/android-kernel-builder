@@ -5,7 +5,7 @@ name: unpin-group
 # Manual pins (from a user) are never touched. Stateless: no offsets.
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 jobs:
