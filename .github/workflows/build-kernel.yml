@@ -573,18 +573,7 @@ jobs:
           # Same footnotes into the Telegram post (HTML-escaped, slotted
           # before Download so the shape matches the template).
           if [ -s "$EXTRA" ]; then
-            python3 - "$EXTRA" telegram-post.txt <<'PYEOF'
-            import sys, html
-            lines = [l for l in open(sys.argv[1]).read().splitlines()
-                     if l.strip() and not l.strip().startswith('#')]
-            post = open(sys.argv[2]).read()
-            if lines:
-                block = "<b>📌 Notes</b>\n" + "\n".join(html.escape(l) for l in lines) + "\n\n"
-                marker = "<b>⬇️ Download</b>"
-                post = post.replace(marker, block + marker) if marker in post else post + "\n" + block
-                open(sys.argv[2], "w").write(post)
-            print("telegram notes:", len(lines))
-            PYEOF
+            python3 "$GITHUB_WORKSPACE/builder/tools/telegram-notes.py" "$EXTRA" telegram-post.txt
           fi
           echo "--- telegram-post.txt ---"; cat telegram-post.txt; echo "--- end ---"
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
