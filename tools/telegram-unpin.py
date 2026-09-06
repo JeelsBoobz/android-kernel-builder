@@ -20,12 +20,13 @@ import urllib.parse
 
 
 def api(token, method, **params):
-    url = "https://api.telegram.org/bot%s/%s" % (token, method)
+    base = os.environ.get("TG_API_BASE", "https://api.telegram.org")
+    url = "%s/bot%s/%s" % (base, token, method)
     data = urllib.parse.urlencode(params).encode()
+    req = urllib.request.Request(url, data=data)
     try:
-        with urllib.request.Request(url, data=data) as req:
-            with urllib.request.urlopen(req, timeout=20) as r:
-                return json.load(r)
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.load(r)
     except Exception as e:  # network or HTTP error -> loud, fail open upstream
         return {"ok": False, "description": str(e)}
 
