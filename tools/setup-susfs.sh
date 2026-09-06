@@ -18,8 +18,9 @@
 #                 only 50_add_susfs_in_<gki-version>.patch differs (hunk
 #                 context tracking upstream drift, +1 selinux file on
 #                 6.6/6.12). Applied with git apply in common/.
-# No upstream branch exists for 6.18 -> clean skip (exit 0, no fragment),
-# so that tree builds KSU-only. Writes .fragments/susfs.config for
+# No upstream branch exists for 6.18 -> KSU-only build with a suppression
+# fragment (KSU_SUSFS defaults y on dev-susfs; must be forced off or the
+# driver includes missing headers). Writes .fragments/susfs.config for
 # apply-fragments.sh (kept out of fragments/ on purpose: the symbol must
 # never be enabled without the patched source present).
 set -euo pipefail
@@ -45,7 +46,18 @@ case "$OUR_BRANCH" in
   android15-6.6-*)  GKI_VER="gki-android15-6.6" ;;
   android16-6.12-*) GKI_VER="gki-android16-6.12" ;;
   *)
-    echo "setup-susfs: no upstream branch for '$OUR_BRANCH' (6.18+); skipping, KSU-only build"
+    # No upstream branch for 6.18+: KSU-only build. The suppression below
+    # is load-bearing, not cosmetic -- dev-susfs's KSU_SUSFS defaults to y,
+    # and with =y the driver #includes <linux/susfs*.h>, which do not exist
+    # without the kernel-side patch. Forcing the family off keeps the driver
+    # on its plain-dev code paths (all susfs refs are #ifdef-guarded).
+    mkdir -p .fragments
+    cat > .fragments/susfs.config <<'EOF'
+# No SuSFS on this tree (no upstream per-version branch): force the whole
+# KSU_SUSFS family off so dev-susfs builds its plain-dev paths.
+# CONFIG_KSU_SUSFS is not set
+EOF
+    echo "setup-susfs: no upstream branch for '$OUR_BRANCH' (6.18+); wrote KSU_SUSFS suppression, KSU-only build"
     exit 0 ;;
 esac
 
