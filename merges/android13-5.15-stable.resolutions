@@ -2,7 +2,8 @@
 # android13-5.15-lts (e9b8a65) -> android13-5.15-stable.
 # Human-resolved hunk by hunk (three-way base/ours/theirs read in full);
 # "manual" blocks live in merges/manual/android13-5.15-stable/.
-# Format: "<path> = ours|theirs|manual".
+# Format: "<path> = ours|theirs|manual|fixup" (fixup = recorded content
+# for a non-conflicted file; see timer.h below).
 
 # Stable split one check into two with a better message; ours' combined
 # check is the older form of the same validation.
@@ -39,3 +40,14 @@ net/mptcp/protocol.c = manual
 # coherently). Stable's 5-arg open-coded loop would not compile against it;
 # the call_int_hook macro still exists. Keep Android's call.
 security/security.c = ours
+
+# TIMER COMPAT FIXUP (not a conflict -- git silently combined incompatible
+# sides): AOSP reverted upstream's del_timer* -> timer_delete* rename on
+# 5.15 LTS (keep del_timer/del_timer_sync exported, vendor ABI), while
+# linux-5.15.y 211->220 adds uses of the new names (psi.c
+# timer_shutdown_sync, hid-uclogic, ...). merged timer.h/timer.c == LTS
+# (old names), so every new-name use dangles. Fixup appends the new names
+# as static inlines over the old exported API: zero new exports, zero KABI
+# impact. timer_shutdown_sync maps to del_timer_sync (-lts behavior kept;
+# upstream's re-arm-race fix consciously not taken).
+include/linux/timer.h = fixup

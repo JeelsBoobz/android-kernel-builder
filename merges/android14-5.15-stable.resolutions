@@ -75,3 +75,13 @@ net/ipv4/route.c = ours
 # Android's compat translator path. Keep Android's guard.
 net/xfrm/xfrm_state.c = ours
 net/xfrm/xfrm_user.c = ours
+
+# TIMER COMPAT FIXUP (not a conflict -- git silently combined incompatible
+# sides): AOSP reverted upstream's del_timer* -> timer_delete* rename on
+# 5.15 LTS (keep del_timer/del_timer_sync exported, vendor ABI), while
+# linux-5.15.y 211->220 adds uses of the new names (psi.c
+# timer_shutdown_sync, ...). merged timer.h/timer.c == LTS (old names),
+# so every new-name use dangles. Fixup appends the new names as static
+# inlines over the old exported API: zero new exports, zero KABI impact.
+# timer_shutdown_sync maps to del_timer_sync (-lts behavior kept).
+include/linux/timer.h = fixup
