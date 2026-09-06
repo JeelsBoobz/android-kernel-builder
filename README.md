@@ -122,4 +122,6 @@ written by the author (scripts, workflows, fragments, AK3 template) is GPL-3.0-o
 
 Carve-outs (not ours, licenses unchanged): AnyKernel3 backend
 (`anykernel/tools/`, `anykernel/META-INF/`, BSD — see
-`anykernel/LICENSE.upstream`) and the `magiskboot` binary (upstream Magisk).
+`anykernel/LICENSE.upstream`), the `magiskboot` binary (upstream Magisk),
+and vendored BBRv3 backports (`patches/bbrv3/`, GPL-2.0-only kernel diffs —
+see `patches/bbrv3/NOTICE`).

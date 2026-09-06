@@ -41,6 +41,10 @@ on:
       susfs_ref:
         description: "SuSFS commit pin within the per-version branch (default: branch tip)"
         default: ""
+      bbrv3:
+        description: "Integrate WildKernels BBRv3 TCP backport (5.10-6.6 only; dormant until selected)"
+        type: boolean
+        default: false
       fragments:
         description: "Apply repo fragment dirs (false = stock baseline; extra_config still applies)"
         type: boolean
@@ -199,6 +203,17 @@ jobs:
           cd kernel
           bash "$GITHUB_WORKSPACE/builder/tools/setup-susfs.sh" \
             --our-branch "${{ matrix.our_branch }}" --ref "${{ inputs.susfs_ref }}"
+
+      # BBRv3 (WildKernels backports, version-gated): separate tcp_bbr3.c
+      # alongside BBRv1 (untouched); dormant until selected per-connection.
+      # Writes .fragments/bbrv3.config, picked up by the Apply step below.
+      - name: Integrate BBRv3
+        if: inputs.bbrv3 != false
+        run: |
+          cd kernel
+          bash "$GITHUB_WORKSPACE/builder/tools/setup-bbrv3.sh" \
+            --our-branch "${{ matrix.our_branch }}" \
+            --patch-dir "$GITHUB_WORKSPACE/builder/patches/bbrv3"
 
       # NoMount: same pattern (full clone, installer pins, symlink into
       # common/fs + Makefile/Kconfig hooks, .fragments/nomount.config).

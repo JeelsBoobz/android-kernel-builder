@@ -20,6 +20,7 @@ revisited whenever a build proves otherwise.
 | 9 | zswap (6.6 only) | MEDIUM | Core-mm adjacent but mature code; KMI/module-outs block all other trees, non-6.6 copies dropped |
 | 23 | udf (common) | LOW | CIFS-shaped: dormant till mount, selects core only, zero module-outs on 6.12/6.18 |
 | 24 | ntsync (6.18-only) | LOW | Dep-less tristate, sole-tree symbol, dormant char device, no interaction with any integration |
+| 25 | BBRv3 backport | MEDIUM | Experimental, default-off; separate tcp_bbr3.c (BBRv1 untouched), dormant till selected; ~120KB over shared TCP helpers (upstream-series provenance); version-gated, 6.12/6.18 excluded (no proven patch) |
 
 ## Dropped (queue stopped here; files deleted, rationale kept)
 
