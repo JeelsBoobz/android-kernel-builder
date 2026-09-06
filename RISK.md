@@ -18,6 +18,8 @@ revisited whenever a build proves otherwise.
 | 7 | usb-mass-storage (CONFIGFS gadget) | RETIRED | Sole symbol stock =y everywhere — fragment was a proven no-op, deleted |
 | 8 | usb-serial (5.10 only, =y) | LOW | build.sh era has no module-outs check; 5.15+ stays =m (Kleaf staging) |
 | 9 | zswap (6.6 only) | MEDIUM | Core-mm adjacent but mature code; KMI/module-outs block all other trees, non-6.6 copies dropped |
+| 23 | udf (common) | LOW | CIFS-shaped: dormant till mount, selects core only, zero module-outs on 6.12/6.18 |
+| 24 | ntsync (6.18-only) | LOW | Dep-less tristate, sole-tree symbol, dormant char device, no interaction with any integration |
 
 ## Dropped (queue stopped here; files deleted, rationale kept)
 
