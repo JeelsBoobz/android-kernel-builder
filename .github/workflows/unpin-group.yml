@@ -1,18 +1,26 @@
 name: unpin-group
 # Keeps pinning manual: Telegram auto-pins every channel post forwarded to
-# the linked discussion group. This ticks every 5 min, reads the group's
-# current pin, and unpins it ONLY if it originated from the channel.
-# Manual pins (from a user) are never touched. Stateless: no offsets.
+# the linked discussion group, displacing the manual pin. This ticks daily,
+# learns the manual pin into .ci/group-pin.txt, and on a channel pin:
+# unpin it + re-pin the recorded manual one. Manual pins are never
+# unpinned; an empty group is respected (no restore = deliberate clear).
 on:
   schedule:
     - cron: "0 4 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write # pin-memory commits
+
 jobs:
   unpin:
     runs-on: ubuntu-latest
     steps:
-      - name: Unpin channel posts in discussion group
+      - name: Checkout builder (pin memory)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Restore manual pin in discussion group
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_GROUP: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
@@ -20,42 +28,19 @@ jobs:
         run: |
           [ -n "$TG_TOKEN" ] && [ -n "$TG_GROUP" ] && [ -n "$TG_CHAN" ] || \
             { echo "telegram group secrets unset; skipping"; exit 0; }
-          python3 <<'PYEOF'
-          import json, os, sys, urllib.request, urllib.parse
-          token = os.environ["TG_TOKEN"]
-          group = os.environ["TG_GROUP"]
-          channel = int(os.environ["TG_CHAN"])
-
-          def api(method, **params):
-              url = "https://api.telegram.org/bot%s/%s" % (token, method)
-              data = urllib.parse.urlencode(params).encode()
-              try:
-                  with urllib.request.urlopen(url, data=data, timeout=20) as r:
-                      return json.load(r)
-              except Exception as e:
-                  return {"ok": False, "description": str(e)}
-
-          chat = api("getChat", chat_id=group)
-          if not chat.get("ok"):
-              print("getChat failed: %s" % chat.get("description", "?"))
-              sys.exit(1)
-          pinned = chat["result"].get("pinned_message")
-          if not pinned:
-              print("no pinned message; nothing to do")
-              sys.exit(0)
-          from_channel = ((pinned.get("sender_chat") or {}).get("id") == channel or
-                          (pinned.get("forward_from_chat") or {}).get("id") == channel)
-          if not from_channel:
-              print("pinned message %s is manual; leaving it" % pinned.get("message_id"))
-              sys.exit(0)
-          res = api("unpinChatMessage", chat_id=group, message_id=pinned["message_id"])
-          if res.get("ok"):
-              print("unpinned channel post %s" % pinned["message_id"])
-              sys.exit(0)
-          desc = res.get("description", "?")
-          if "not pinned" in desc or "not found" in desc:
-              print("already unpinned; fine")
-              sys.exit(0)
-          print("unpin FAILED: %s" % desc)
-          sys.exit(1)
-          PYEOF
+          PIN_FILE=.ci/group-pin.txt
+          RECORDED=$(cat "$PIN_FILE" 2>/dev/null || echo "")
+          export RECORDED
+          ACTION=$(python3 tools/telegram-unpin.py)
+          echo "$ACTION"
+          if [ -f /tmp/newpin ]; then
+            NEW=$(cat /tmp/newpin); OLD=$(cat "$PIN_FILE" 2>/dev/null || echo "")
+            if [ "$NEW" != "$OLD" ]; then
+              mkdir -p .ci; printf '%s' "$NEW" > "$PIN_FILE"
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add "$PIN_FILE"
+              git commit -m "telegram: track manual group pin ($NEW)" || true
+              git push || echo "WARN: pin memory push failed"
+            fi
+          fi
