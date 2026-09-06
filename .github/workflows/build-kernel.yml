@@ -373,6 +373,14 @@ jobs:
           path: release/
           if-no-files-found: ignore
 
+      - name: Upload KSU version
+        if: inputs.ksu != false
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksu-version-${{ steps.rev.outputs.rev }}
+          path: kernel/.ksu-version
+          if-no-files-found: ignore
+
   # One release per run: gathers every AnyKernel3 zip (partial success
   # still publishes what built). Raw Image/vmlinux/System.map stay as
   # run artifacts only. Re-runs reuse the same tag (upload --clobber).
@@ -387,6 +395,15 @@ jobs:
           pattern: anykernel-*
           path: zips
           merge-multiple: true
+      - name: Fetch KSU versions
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ksu-version-*
+          path: ksuversions
+          merge-multiple: true
+        # Zero match (ksu=false, total build failure) must not fail the job;
+        # the Publish step degrades to ref-based text in that case.
+        continue-on-error: true
       - name: Checkout builder (template + HEAD subject)
         uses: actions/checkout@v4
         with:
@@ -402,6 +419,23 @@ jobs:
           TAG="kernel-build-r${{ github.run_number }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           FRAGS=$(cd "$GITHUB_WORKSPACE/builder/fragments/common" && ls *.config 2>/dev/null | sed 's/\.config$//' | tr '\n' ' ')
+          # Resolved KSU versions (one "TAG SHA REF" file per built branch).
+          # Uniform -> single value; mixed -> common plus branch outliers;
+          # absent -> the requested ref (old text). powers the table + telegram.
+          KSU_DISPLAY="off"
+          if [ "${{ inputs.ksu }}" != "false" ]; then
+            KSU_DISPLAY="on (ref: ${{ inputs.ksu_ref || 'latest tag' }})"
+            KSU_FIRST=""; KSU_OUT=""
+            for vf in ksuversions/ksu-version-*.txt; do
+              [ -f "$vf" ] || continue
+              read -r tag sha ref < "$vf"
+              if [ -z "$ref" ] || [ "$ref" = "$tag" ]; then d="$tag"; else d="$ref@$sha"; fi
+              b=$(basename "$vf" .txt); b=${b#ksu-version-}
+              if [ -z "$KSU_FIRST" ]; then KSU_FIRST="$d"; KSU_OUT="$d";
+              elif [ "$d" != "$KSU_FIRST" ]; then KSU_OUT="$KSU_OUT; $b: $d"; fi
+            done
+            [ -n "$KSU_FIRST" ] && KSU_DISPLAY="$KSU_OUT"
+          fi
           {
             echo "## ⚡ GKI Kernel \`$TAG\`"
             echo ""
@@ -412,7 +446,7 @@ jobs:
             echo "| Option | Value |"
             echo "|---|---|"
             echo "| Branches | \`${{ inputs.branch || 'all' }}\` |"
-            echo "| KernelSU-Next | \`${{ inputs.ksu }}\` (\`${{ inputs.ksu_ref || 'latest tag' }}\`) |"
+            echo "| KernelSU-Next | \`$KSU_DISPLAY\` |"
             echo "| NoMount | \`${{ inputs.nomount }}\` |"
             echo "| Partition Guard | \`${{ inputs.guard }}\` |"
             echo "| Extra fragments | \`${{ inputs.fragments }}\` |"
@@ -434,7 +468,7 @@ jobs:
           HLESC=$(printf '%s' "$HL" | sed 's/[&|\\/]/\\&/g')
           printf '%s\n' "${files[@]##*/}" > /tmp/tg_files.txt
           {
-            [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next (\`${{ inputs.ksu_ref || 'latest tag' }}\`)"
+            [ "${{ inputs.ksu }}" = "true" ] && echo "• KernelSU-Next $KSU_DISPLAY"
             [ "${{ inputs.nomount }}" = "true" ] && echo "• NoMount VFS redirection"
             [ "${{ inputs.guard }}" = "true" ] && echo "• Partition Guard LSM"
             echo "• Fragments: $FRAGS"
