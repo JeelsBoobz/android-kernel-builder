@@ -77,9 +77,10 @@ jobs:
           cat "$GITHUB_OUTPUT"
       - name: Summary
         run: |
-          J=$(cat "variants/${{ inputs.variant }}.json")
+          V="${{ inputs.variant }}"; [ -n "$V" ] || V=plain
+          J=$(cat "variants/$V.json")
           {
-            echo "## Variant \`${{ inputs.variant }}\` → branch \`${{ steps.v.outputs.branch }}\`"
+            echo "## Variant \`$V\` → branch \`${{ steps.v.outputs.branch }}\`"
             echo ""
             echo "| branch | ksu | susfs | nomount | guard |"
             echo "|---|---|---|---|---|"
