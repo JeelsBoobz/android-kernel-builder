@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Supervisor review of an LTS+stable merge diff via OpenRouter.
 
 Usage:

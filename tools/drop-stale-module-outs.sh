@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
 # drop-stale-module-outs.sh - remove .ko entries from a Kleaf modules.bzl
 # that our built-in posture makes unbuildable.
 #

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 name: build-kernel
 
 on:
@@ -98,7 +99,7 @@ jobs:
           path: builder
 
       # Throwaway runner: nuke preinstalled SDK/toolchain trees directly
-      # (vendored from CloudFox-Kernel-Builder, no third-party action).
+      # (vendored from the author's prior identity CloudFox-Kernel-Builder, no third-party action).
       # Full kernel tree + prebuilts + bazel cache need tens of GB.
       - name: Free disk space
         run: |
@@ -106,7 +107,7 @@ jobs:
           df -h
 
       # Kernel link far exceeds the 16GB runner RAM; 24G swap keeps
-      # LD/BTF/clang from OOM-killing (same as CloudFox).
+      # LD/BTF/clang from OOM-killing (same as prior CloudFox work).
       - name: Add 24G swap
         run: |
           sudo swapoff -a
@@ -294,7 +295,7 @@ jobs:
 
       # build.sh only: check_defconfig requires the committed defconfig to
       # byte-match canonical savedefconfig, so fragment injection must be
-      # followed by the self-heal stage (vendored from CloudFox) as
+      # followed by the self-heal stage (vendored from prior CloudFox work) as
       # POST_DEFCONFIG_CMDS. Kleaf needs nothing extra (order-insensitive).
       - name: Prepare portable build config (build.sh era)
         if: matrix.build_kind == 'build_sh'

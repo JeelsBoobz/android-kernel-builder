@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
 # apply-fragments.sh - portable defconfig fragment applier (build.sh + Kleaf).
 #
 # Merges *.config fragments into arch/$ARCH/configs/$DEFCONFIG inside the

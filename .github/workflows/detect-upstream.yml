@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 name: detect-upstream
 # New kernel-source commit -> release run. Mirror (02:30) + merge-stable
 # (03:30) land daily; this ticks every 6h and catches movement within a tick.
