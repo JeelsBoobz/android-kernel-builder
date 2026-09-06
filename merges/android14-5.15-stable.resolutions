@@ -44,9 +44,9 @@ drivers/scsi/sd_zbc.c = manual
 # Same as the 13-5.15 tree: dma line, no clamp.
 drivers/usb/host/xhci.c = manual
 
-# Hunk 1: WARN_ON_ONCE + clear_mk_users (stable adopted clear_mk_users;
-# keep Android's ONCE). Hunk 2: byte-identical both sides (stable adopted
-# Android's list-based user claims); take stable side.
+# Real merge fuses this to ONE hunk (the WARN line); clear_mk_users and
+# the list-based find_master_key_user auto-merge (stable adopted Android's
+# design). Keep Android's WARN_ON_ONCE.
 fs/crypto/keyring.c = manual
 
 # Same adjacent-include union as the 13-5.15 tree.

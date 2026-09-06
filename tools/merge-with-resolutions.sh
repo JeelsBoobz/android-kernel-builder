@@ -21,7 +21,11 @@
 # replacements: <manual-dir>/<path> holds one replacement block per
 # conflict hunk, in order, separated by a line "@@RESOLVED-HUNK@@"
 # (empty block = delete both sides). Splicing (not whole-file copy) keeps
-# git's own auto-merge for everything outside the hunks.
+# git's own auto-merge for everything outside the hunks. Inside a block, a
+# line exactly "@@RESOLVED-OURS@@" / "@@RESOLVED-THEIRS@@" expands to that
+# hunk's own side from the LIVE conflicted file -- always prefer this over
+# pasting side text (merge pairing skew makes pasted sides duplicate or
+# misplace; live expansion is pairing-proof by construction).
 # Makefile takes --theirs (stable-only version bump, same as merge-stable).
 #
 # Exit 0 = gates passed, review pushed (stable pushed too iff --promote).
@@ -93,8 +97,11 @@ push_ref() { # $1 sha $2 ref $3 old-or-empty
 }
 
 GITID=(-c user.name=kernel-mirror -c user.email=kernel-mirror@users.noreply.github.com)
+# Pin default marker style: the splice logic below parses
+# <<<<<<< / ======= / >>>>>>> (no base block). A foreign
+# merge.conflictStyle (diff3/zdiff3) would leak base content in.
 git "${GITID[@]}" checkout -q "$LTS_TIP"
-if git "${GITID[@]}" merge --no-ff --no-edit \
+if git -c merge.conflictStyle=merge "${GITID[@]}" merge --no-ff --no-edit \
     -m "Merge $STABLE ($STABLE_TIP) into $LTS ($LTS_TIP)" "$STABLE_TIP" 2>/dev/null; then
   log "merged clean (no resolutions needed)"
 else
@@ -140,11 +147,20 @@ out, i, nconf = [], 0, 0
 while i < len(lines):
     if lines[i].startswith("<<<<<<<"):
         j = next(k for k in range(i, len(lines)) if lines[k].startswith(">>>>>>>"))
+        try:
+            m = next(k for k in range(i, j) if lines[k].startswith("======="))
+        except StopIteration:
+            print(f"manual {man}: hunk {nconf+1} has no ======= divider", file=sys.stderr); sys.exit(2)
+        ours_side, theirs_side = lines[i+1:m], lines[m+1:j]
         nconf += 1
         if nconf > len(reps):
             print(f"manual {man}: more conflict hunks than replacement blocks", file=sys.stderr); sys.exit(2)
         rep = reps[nconf - 1]
-        if rep: out.extend(rep.splitlines())
+        if rep:
+            for rl in rep.splitlines():
+                if rl == "@@RESOLVED-OURS@@": out.extend(ours_side)
+                elif rl == "@@RESOLVED-THEIRS@@": out.extend(theirs_side)
+                else: out.append(rl)
         i = j + 1
     else:
         out.append(lines[i]); i += 1
