@@ -17,7 +17,7 @@
       "ksu_ref": "02cff7277d824b6e56c7284334b7c7678cf5312f",
       "susfs_ref": "",
       "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
-      "guard_ref": "c12b72944345ad883a36a6e3b95538fbfd399f64"
+      "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
       "branch": "android13-5.10-lts",
@@ -27,7 +27,7 @@
       "ksu_ref": "02cff7277d824b6e56c7284334b7c7678cf5312f",
       "susfs_ref": "",
       "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
-      "guard_ref": "c12b72944345ad883a36a6e3b95538fbfd399f64"
+      "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
       "branch": "android13-5.15-lts",
@@ -37,7 +37,7 @@
       "ksu_ref": "02cff7277d824b6e56c7284334b7c7678cf5312f",
       "susfs_ref": "",
       "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
-      "guard_ref": "c12b72944345ad883a36a6e3b95538fbfd399f64"
+      "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
       "branch": "android14-5.15-lts",
@@ -47,7 +47,7 @@
       "ksu_ref": "02cff7277d824b6e56c7284334b7c7678cf5312f",
       "susfs_ref": "",
       "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
-      "guard_ref": "c12b72944345ad883a36a6e3b95538fbfd399f64"
+      "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
       "branch": "android14-6.1-lts",
@@ -57,7 +57,7 @@
       "ksu_ref": "02cff7277d824b6e56c7284334b7c7678cf5312f",
       "susfs_ref": "",
       "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
-      "guard_ref": "c12b72944345ad883a36a6e3b95538fbfd399f64"
+      "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
       "branch": "android15-6.6-lts",
@@ -67,7 +67,7 @@
       "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
       "susfs_ref": "",
       "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
-      "guard_ref": "c12b72944345ad883a36a6e3b95538fbfd399f64"
+      "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
       "branch": "android16-6.12-lts",
@@ -77,7 +77,7 @@
       "ksu_ref": "02cff7277d824b6e56c7284334b7c7678cf5312f",
       "susfs_ref": "",
       "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
-      "guard_ref": "c12b72944345ad883a36a6e3b95538fbfd399f64"
+      "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
       "branch": "android17-6.18-lts",
@@ -87,7 +87,7 @@
       "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
       "susfs_ref": "",
       "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
-      "guard_ref": "c12b72944345ad883a36a6e3b95538fbfd399f64"
+      "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     }
   ]
 }
