@@ -57,10 +57,22 @@ fi
 # accepts. Compute from the runner-side full clone and bake into the
 # fallback assignments (same 30000+ formula as Kbuild). build.sh is
 # unaffected (real .git present, fallback lines unused).
-KSU_COUNT=$(git -C "$NAME" rev-list --count HEAD)
+# Version is derived from the latest reachable TAG, not the moving tip:
+# 30000+count@HEAD on dev-susfs mints versionCodes that exist nowhere
+# (no tag, no manager build), breaking manager matching. Tag counts are
+# stable and match an installable manager release; the few commits past
+# the tag don't change the protocol. Falls back to HEAD count only if
+# no tag resolves (loudly).
 KSU_TAG=$(git -C "$NAME" describe --tags --abbrev=0)
 KSU_SHA=$(git -C "$NAME" rev-parse --short HEAD)
-KSU_VERSION=$((30000 + KSU_COUNT))
+if TAG_COUNT=$(git -C "$NAME" rev-list --count "$KSU_TAG" 2>/dev/null); then
+  KSU_VERSION=$((30000 + TAG_COUNT))
+  echo "setup-kernelsu-next: version from tag $KSU_TAG ($KSU_VERSION)"
+else
+  KSU_COUNT=$(git -C "$NAME" rev-list --count HEAD)
+  KSU_VERSION=$((30000 + KSU_COUNT))
+  echo "setup-kernelsu-next: WARN no tag resolved, version from HEAD ($KSU_VERSION)"
+fi
 echo "setup-kernelsu-next: source at $KSU_SHA ($KSU_TAG, versionCode $KSU_VERSION)"
 # Resolved identity for release notes (TAG SHA requested-REF versionCode;
 # empty REF = latest tag). Written into the repo-sync root; the workflow
