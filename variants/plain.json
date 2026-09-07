@@ -14,9 +14,9 @@
       "fallback": "android12-5.10-lts",
       "manifest": "common-android12-5.10-lts",
       "kind": "build_sh",
-      "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
+      "ksu_ref": "8b9d7a7a9cd4a45a6b297817a0925031bc9454a9",
       "susfs_ref": "",
-      "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
+      "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
@@ -24,9 +24,9 @@
       "fallback": "android13-5.10-lts",
       "manifest": "common-android13-5.10-lts",
       "kind": "build_sh",
-      "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
+      "ksu_ref": "8b9d7a7a9cd4a45a6b297817a0925031bc9454a9",
       "susfs_ref": "",
-      "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
+      "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
@@ -34,9 +34,9 @@
       "fallback": "android13-5.15-lts",
       "manifest": "common-android13-5.15-lts",
       "kind": "build_sh",
-      "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
+      "ksu_ref": "8b9d7a7a9cd4a45a6b297817a0925031bc9454a9",
       "susfs_ref": "",
-      "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
+      "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
@@ -44,9 +44,9 @@
       "fallback": "android14-5.15-lts",
       "manifest": "common-android14-5.15-lts",
       "kind": "kleaf",
-      "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
+      "ksu_ref": "8b9d7a7a9cd4a45a6b297817a0925031bc9454a9",
       "susfs_ref": "",
-      "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
+      "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
@@ -54,9 +54,9 @@
       "fallback": "android14-6.1-lts",
       "manifest": "common-android14-6.1-lts",
       "kind": "kleaf",
-      "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
+      "ksu_ref": "8b9d7a7a9cd4a45a6b297817a0925031bc9454a9",
       "susfs_ref": "",
-      "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
+      "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
@@ -64,9 +64,9 @@
       "fallback": "android15-6.6-lts",
       "manifest": "common-android15-6.6-lts",
       "kind": "kleaf",
-      "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
+      "ksu_ref": "8b9d7a7a9cd4a45a6b297817a0925031bc9454a9",
       "susfs_ref": "",
-      "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
+      "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
@@ -74,9 +74,9 @@
       "fallback": "android16-6.12-lts",
       "manifest": "common-android16-6.12-lts",
       "kind": "kleaf",
-      "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
+      "ksu_ref": "8b9d7a7a9cd4a45a6b297817a0925031bc9454a9",
       "susfs_ref": "",
-      "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
+      "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     },
     {
@@ -84,9 +84,9 @@
       "fallback": "android17-6.18-lts",
       "manifest": "common-android17-6.18-lts",
       "kind": "kleaf",
-      "ksu_ref": "2482c56952ea36ee13809058c279a2dce075113f",
+      "ksu_ref": "8b9d7a7a9cd4a45a6b297817a0925031bc9454a9",
       "susfs_ref": "",
-      "nomount_ref": "9122a0bf5705e50d9a0ba12ef662413028f3a877",
+      "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
     }
   ]
