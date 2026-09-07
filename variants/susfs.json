@@ -14,7 +14,7 @@
       "fallback": "android12-5.10-lts",
       "manifest": "common-android12-5.10-lts",
       "kind": "build_sh",
-      "ksu_ref": "aab67ba4e6fc043b97d7c7e5051f2699f421f258",
+      "ksu_ref": "c7e27d8275cbbe5a54076ced6abf6733b5d25dca",
       "susfs_ref": "",
       "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
@@ -24,7 +24,7 @@
       "fallback": "android13-5.10-lts",
       "manifest": "common-android13-5.10-lts",
       "kind": "build_sh",
-      "ksu_ref": "aab67ba4e6fc043b97d7c7e5051f2699f421f258",
+      "ksu_ref": "c7e27d8275cbbe5a54076ced6abf6733b5d25dca",
       "susfs_ref": "",
       "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
@@ -34,7 +34,7 @@
       "fallback": "android13-5.15-lts",
       "manifest": "common-android13-5.15-lts",
       "kind": "build_sh",
-      "ksu_ref": "aab67ba4e6fc043b97d7c7e5051f2699f421f258",
+      "ksu_ref": "c7e27d8275cbbe5a54076ced6abf6733b5d25dca",
       "susfs_ref": "",
       "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
@@ -44,7 +44,7 @@
       "fallback": "android14-5.15-lts",
       "manifest": "common-android14-5.15-lts",
       "kind": "kleaf",
-      "ksu_ref": "aab67ba4e6fc043b97d7c7e5051f2699f421f258",
+      "ksu_ref": "c7e27d8275cbbe5a54076ced6abf6733b5d25dca",
       "susfs_ref": "",
       "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
@@ -54,7 +54,7 @@
       "fallback": "android14-6.1-lts",
       "manifest": "common-android14-6.1-lts",
       "kind": "kleaf",
-      "ksu_ref": "aab67ba4e6fc043b97d7c7e5051f2699f421f258",
+      "ksu_ref": "c7e27d8275cbbe5a54076ced6abf6733b5d25dca",
       "susfs_ref": "",
       "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
@@ -74,7 +74,7 @@
       "fallback": "android16-6.12-lts",
       "manifest": "common-android16-6.12-lts",
       "kind": "kleaf",
-      "ksu_ref": "aab67ba4e6fc043b97d7c7e5051f2699f421f258",
+      "ksu_ref": "c7e27d8275cbbe5a54076ced6abf6733b5d25dca",
       "susfs_ref": "",
       "nomount_ref": "0c4b2dbd113b267b673cd7925cd80736658d7a62",
       "guard_ref": "e23b2d8661043c5ec99494bfac6094707897c122"
