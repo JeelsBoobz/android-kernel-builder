@@ -34,7 +34,7 @@ NAME="KernelSU-Next"
 # ourselves (fail fast), run the installer for its symlink/hook work,
 # then verify HEAD (fail closed on any drift, e.g. a pull moving a branch).
 if [ -n "$REF" ]; then
-  git -C "$NAME" fetch origin "$REF" 2>/dev/null || git -C "$NAME" fetch origin || true
+  git -C "$NAME" fetch origin || true
   git -C "$NAME" checkout -q "$REF" || { echo "setup-kernelsu-next: cannot checkout ref '$REF'" >&2; exit 2; }
 fi
 
@@ -57,22 +57,19 @@ fi
 # accepts. Compute from the runner-side full clone and bake into the
 # fallback assignments (same 30000+ formula as Kbuild). build.sh is
 # unaffected (real .git present, fallback lines unused).
-# Version is derived from the latest reachable TAG, not the moving tip:
-# 30000+count@HEAD on dev-susfs mints versionCodes that exist nowhere
-# (no tag, no manager build), breaking manager matching. Tag counts are
-# stable and match an installable manager release; the few commits past
-# the tag don't change the protocol. Falls back to HEAD count only if
-# no tag resolves (loudly).
-KSU_TAG=$(git -C "$NAME" describe --tags --abbrev=0)
+# Version anchors to the merge-base with official dev (method:
+# WildKernels kernelsu action): pershoot-only commits must not mint
+# versionCodes, or the kernel claims versions no manager build matches.
+# dev trees land on HEAD itself (full count); dev-susfs lands on the fork
+# point (official-compatible code). Unambiguous refs: a tag literally
+# named "origin/dev" exists upstream and shadows short names.
 KSU_SHA=$(git -C "$NAME" rev-parse --short HEAD)
-if TAG_COUNT=$(git -C "$NAME" rev-list --count "$KSU_TAG" 2>/dev/null); then
-  KSU_VERSION=$((30000 + TAG_COUNT))
-  echo "setup-kernelsu-next: version from tag $KSU_TAG ($KSU_VERSION)"
-else
-  KSU_COUNT=$(git -C "$NAME" rev-list --count HEAD)
-  KSU_VERSION=$((30000 + KSU_COUNT))
-  echo "setup-kernelsu-next: WARN no tag resolved, version from HEAD ($KSU_VERSION)"
-fi
+BASE_COMMIT=$(git -C "$NAME" merge-base HEAD refs/remotes/origin/dev 2>/dev/null || \
+  git -C "$NAME" merge-base HEAD refs/remotes/origin/main 2>/dev/null || echo HEAD)
+KSU_COUNT=$(git -C "$NAME" rev-list --count "$BASE_COMMIT")
+KSU_TAG=$(git -C "$NAME" describe --tags --abbrev=0 "$BASE_COMMIT" 2>/dev/null || echo "v0.0.1")
+KSU_VERSION=$((30000 + KSU_COUNT))
+echo "setup-kernelsu-next: version $KSU_TAG ($KSU_VERSION) via base $BASE_COMMIT"
 echo "setup-kernelsu-next: source at $KSU_SHA ($KSU_TAG, versionCode $KSU_VERSION)"
 # Resolved identity for release notes (TAG SHA requested-REF versionCode;
 # empty REF = latest tag). Written into the repo-sync root; the workflow
